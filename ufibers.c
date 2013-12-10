@@ -35,12 +35,14 @@
 /* architecture */
 #if ARCH_AMD64
 #define CONTEXT_SIZE (8*16)	/* 15 registers + eflags */
-#define SR_OFF (-2)		/* %rax */
-#define ARG_OFF (-7)		/* %rdi */
+#define RA_POS (16)		/* return address */
+#define SR_POS (14)		/* %rax */
+#define ARG_POS (9)		/* %rdi */
 #elif ARCH_IA32
 #define CONTEXT_SIZE (4*8)
-#define SR_OFF (-2)		/* %eax */
-#define ARG_OFF (-3)		/* %ebx */
+#define RA_POS  (8)
+#define SR_POS  (6)		/* %eax */
+#define ARG_POS (5)		/* %ebx */
 #endif
 
 /* Allocating TCBs is expensive.  This should be large. */
@@ -289,8 +291,7 @@ int fiber_create(fiber_t *fiber, unsigned long flags,
 {
 	fiber_t fid;
 	struct fiber *tcb;
-	char *frame;
-	unsigned long *stack;
+	unsigned long *frame;
 
 	fid = alloc_tcb();
 	tcb = &fibers[fid];
@@ -301,13 +302,12 @@ int fiber_create(fiber_t *fiber, unsigned long flags,
 	INIT_LIST_HEAD(&tcb->blocked);
 
 	tcb->stack = malloc(STACK_SIZE);
-	frame = tcb->stack + STACK_SIZE - CONTEXT_SIZE - 128;
+	frame = (unsigned long*) (tcb->stack + STACK_SIZE - CONTEXT_SIZE - 128);
 	tcb->esp = (unsigned long) frame;
 
-	stack = (unsigned long*) (frame + CONTEXT_SIZE);
-	stack[0] = (unsigned long) trampoline; /* return address */
-	stack[SR_OFF] = (unsigned long) start_routine;
-	stack[ARG_OFF] = (unsigned long) arg;
+	frame[ARG_POS] = (unsigned long) arg;
+	frame[SR_POS]  = (unsigned long) start_routine;
+	frame[RA_POS]  = (unsigned long) trampoline;
 
 	list_add_tail(&tcb->chain, &ready_queue);
 
