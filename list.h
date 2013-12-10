@@ -176,6 +176,17 @@ static inline void list_del_init(struct list_head *entry)
 }
 
 /**
+ * __list_remove_head - removes the first entry from a list and returns it.
+ * @head: the head of the list to remove from.
+ */
+static inline struct list_head *__list_remove_head(struct list_head *head)
+{
+	struct list_head *ret = head->next;
+	list_del(ret);
+	return ret;
+}
+
+/**
  * list_move - delete from one list and add as another's head
  * @list: the entry to move
  * @head: the head that will precede our entry
@@ -390,6 +401,15 @@ static inline void list_splice_tail_init(struct list_head *list,
  */
 #define list_first_entry(ptr, type, member) \
 	list_entry((ptr)->next, type, member)
+
+/**
+ * list_remove_head - remove the first element from a list and return it.
+ * @ptr:	the list head to take the element from.
+ * @type:	the type of the struct this is embedded in.
+ * @member:	the name of the list_struct within the struct.
+ */
+#define list_remove_head(ptr, type, member) \
+	list_entry(__list_remove_head(ptr), type, member)
 
 /**
  * list_first_entry_or_null - get the first element from a list

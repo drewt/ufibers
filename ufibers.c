@@ -259,8 +259,7 @@ static void schedule(void)
 		exit(EXIT_FAILURE);
 	}
 
-	tcb = list_entry(ready_queue.next, struct fiber, chain);
-	list_del(ready_queue.next);
+	tcb = list_remove_head(&ready_queue, struct fiber, chain);
 
 	context_switch(tcb);
 }
