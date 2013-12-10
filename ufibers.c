@@ -347,7 +347,7 @@ int fiber_yeild_to(fiber_t fiber)
 	if (index >= nr_fibers)
 		return -1;
 
-	if (tcb->state != FS_READY)
+	if (tcb->fid != fiber || tcb->state != FS_READY)
 		return -1;
 
 	ready(current);
