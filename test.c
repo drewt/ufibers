@@ -29,21 +29,21 @@ static void *producer(void *data)
 
 static void *consumer(void *data)
 {
-	fiber_t fid;
+	ufiber_t fid;
 
-	fiber_create(&fid, 0, producer, NULL);
-	fiber_join(fid, NULL);
+	ufiber_create(&fid, 0, producer, NULL);
+	ufiber_join(fid, NULL);
 	printf("Consumer: 0x%p <- shared\n", shared);
 	return shared;
 }
 
 int main(void)
 {
-	fiber_t fid;
+	ufiber_t fid;
 	void *val;
 
-	fiber_init();
-	fiber_create(&fid, 0, consumer, NULL);
-	fiber_join(fid, &val);
+	ufiber_init();
+	ufiber_create(&fid, 0, consumer, NULL);
+	ufiber_join(fid, &val);
 	printf("Root:     0x%p <- child\n", val);
 }

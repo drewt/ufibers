@@ -16,21 +16,21 @@
 #ifndef _FIBER_H_
 #define _FIBER_H_
 
-typedef unsigned long fiber_t;
+typedef unsigned long ufiber_t;
 
-int fiber_init(void);
+int ufiber_init(void);
 
-fiber_t fiber_self(void);
+ufiber_t ufiber_self(void);
 
-int fiber_create(fiber_t *fiber, unsigned long flags,
+int ufiber_create(ufiber_t *fiber, unsigned long flags,
 		void *(*start_routine)(void*), void *arg);
 
-int fiber_join(fiber_t fiber, void **retval);
+int ufiber_join(ufiber_t fiber, void **retval);
 
-void fiber_yeild(void);
+void ufiber_yeild(void);
 
-int fiber_yeild_to(fiber_t fiber);
+int ufiber_yeild_to(ufiber_t fiber);
 
-void fiber_exit(void *retval);
+void ufiber_exit(void *retval);
 
 #endif

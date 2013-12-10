@@ -82,7 +82,7 @@ enum {
 struct fiber {
 	struct list_head chain;		/* link for ready_queue, block lists */
 	struct list_head blocked;	/* list of fibers waiting on join() */
-	fiber_t fid;			/* fiber id */
+	ufiber_t fid;			/* fiber id */
 	char *stack;			/* stack memory */
 	unsigned long esp;		/* stack pointer */
 	unsigned long state;		/* FS_READY, FS_DEAD, etc. */
@@ -111,23 +111,23 @@ static void grow_fibers(void)
 	/* adjust pointers */
 	diff = ((unsigned long)fibers) - ((unsigned long) old_ptr);
 	adjust_ptr(current, diff);
-	for (fiber_t i = 0; i < old_size; i++) {
+	for (ufiber_t i = 0; i < old_size; i++) {
 		adjust_ptr(fibers[i].chain.next, diff);
 		adjust_ptr(fibers[i].chain.prev, diff);
 		adjust_ptr(fibers[i].blocked.next, diff);
 		adjust_ptr(fibers[i].blocked.prev, diff);
 	}
 
-	for (fiber_t i = old_size; i < nr_fibers; i++) {
+	for (ufiber_t i = old_size; i < nr_fibers; i++) {
 		fibers[i].fid = i << COOKIE_BITS;
 		fibers[i].state = FS_DEAD;
 	}
 }
 
 /* get a free TCB */
-static fiber_t alloc_tcb(void)
+static ufiber_t alloc_tcb(void)
 {
-	fiber_t i;
+	ufiber_t i;
 
 	for (i = 0; i < nr_fibers; i++) {
 		if (fibers[i].state == FS_DEAD)
@@ -233,12 +233,12 @@ asm("\n"
 #if ARCH_AMD64
 	"call *%rax		\n\t"
 	"movq %rax, %rdi	\n\t"
-	"call fiber_exit	\n\t"
+	"call ufiber_exit	\n\t"
 #elif ARCH_IA32
 	"pushl %ebx		\n\t"
 	"call  *%eax		\n\t"
 	"pushl %eax		\n\t"
-	"call fiber_exit	\n\t"
+	"call ufiber_exit	\n\t"
 #endif
 );
 
@@ -266,9 +266,9 @@ static void schedule(void)
 
 /* API */
 
-int fiber_init(void)
+int ufiber_init(void)
 {
-	fiber_t fid;
+	ufiber_t fid;
 	struct fiber *tcb;
 
 	fid = alloc_tcb();
@@ -280,15 +280,15 @@ int fiber_init(void)
 	return 0;
 }
 
-fiber_t fiber_self(void)
+ufiber_t ufiber_self(void)
 {
 	return current->fid;
 }
 
-int fiber_create(fiber_t *fiber, unsigned long flags,
+int ufiber_create(ufiber_t *fiber, unsigned long flags,
 		void *(*start_routine)(void*), void *arg)
 {
-	fiber_t fid;
+	ufiber_t fid;
 	struct fiber *tcb;
 	unsigned long *frame;
 
@@ -315,7 +315,7 @@ int fiber_create(fiber_t *fiber, unsigned long flags,
 	return 0;
 }
 
-int fiber_join(fiber_t fiber, void **retval)
+int ufiber_join(ufiber_t fiber, void **retval)
 {
 	unsigned long index = fiber_index(fiber);
 	struct fiber *tcb = &fibers[index];
@@ -334,13 +334,13 @@ int fiber_join(fiber_t fiber, void **retval)
 	return 0;
 }
 
-void fiber_yeild(void)
+void ufiber_yeild(void)
 {
 	ready(current);
 	schedule();
 }
 
-int fiber_yeild_to(fiber_t fiber)
+int ufiber_yeild_to(ufiber_t fiber)
 {
 	unsigned long index = fiber_index(fiber);
 	struct fiber *tcb = &fibers[index];
@@ -356,7 +356,7 @@ int fiber_yeild_to(fiber_t fiber)
 	return 0;
 }
 
-void fiber_exit(void *retval)
+void ufiber_exit(void *retval)
 {
 	struct fiber *pos, *n;
 
