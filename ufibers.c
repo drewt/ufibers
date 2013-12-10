@@ -112,6 +112,8 @@ static void grow_fibers(void)
 	for (fiber_t i = 0; i < old_size; i++) {
 		adjust_ptr(fibers[i].chain.next, diff);
 		adjust_ptr(fibers[i].chain.prev, diff);
+		adjust_ptr(fibers[i].blocked.next, diff);
+		adjust_ptr(fibers[i].blocked.prev, diff);
 	}
 
 	for (fiber_t i = old_size; i < nr_fibers; i++) {
