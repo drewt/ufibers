@@ -34,43 +34,21 @@
 
 /* architecture */
 #if ARCH_AMD64
-#define CONTEXT_SIZE (8*16)	/* 15 registers + eflags */
-#define RA_POS (16)		/* return address */
-#define SR_POS (14)		/* %rax */
-#define ARG_POS (9)		/* %rdi */
+#define CONTEXT_SIZE (8*16) /* 15 registers + eflags */
+#define RA_POS (16)         /* return address */
+#define SR_POS (14)         /* %rax */
+#define ARG_POS (9)         /* %rdi */
 #elif ARCH_IA32
 #define CONTEXT_SIZE (4*8)
 #define RA_POS  (8)
-#define SR_POS  (6)		/* %eax */
-#define ARG_POS (5)		/* %ebx */
+#define SR_POS  (6)         /* %eax */
+#define ARG_POS (5)         /* %ebx */
 #endif
-
-/* Allocating TCBs is expensive.  This should be large. */
-#define ALLOC_STEP 32
 
 #define STACK_SIZE (8*1024*1024)
 
-/* adjust a pointer, e.g. to maintain consistency between realloc()s. */
-#define adjust_ptr(p, diff) ((p) = (void*) ((unsigned long)(p)) + (diff))
-
-/*
- * Fiber IDs (fids) are unsigned longs, where the first COOKIE_BITS bits are
- * used to store a "cookie" value, and the rest are an index into the TCB
- * table.  The cookie is used to prevent fibers from causing havok with stale
- * fids.
- */
-
-#define COOKIE_BITS 2
-#define FID_MASK (~0 << COOKIE_BITS)
-#define COOKIE_MASK ((1 << COOKIE_BITS) - 1)
-
-/* get index into 'fibers' table from fid */
-#define fiber_index(fid) ((fid) >> COOKIE_BITS)
-
-/* update a fid "cookie" */
-#define next_fid(fid) (clean_fid(fid) | ((cookie(fid) + 1) & COOKIE_MASK))
-#define clean_fid(fid) ((fid) & FID_MASK)
-#define cookie(fid) ((fid) & COOKIE_MASK)
+/* must be at least 1 */
+#define FREE_LIST_MAX 1
 
 enum {
 	FS_DEAD = 0,
@@ -80,69 +58,58 @@ enum {
 
 /* fiber TCB */
 struct fiber {
-	struct list_head chain;		/* link for ready_queue, block lists */
-	struct list_head blocked;	/* list of fibers waiting on join() */
-	ufiber_t fid;			/* fiber id */
-	char *stack;			/* stack memory */
-	unsigned long esp;		/* stack pointer */
-	unsigned long state;		/* FS_READY, FS_DEAD, etc. */
+	struct        list_head chain;   /* link for ready_queue, block lists */
+	struct        list_head blocked; /* list of fibers waiting on join() */
+	char          *stack;            /* stack memory */
+	unsigned long esp;               /* stack pointer */
+	unsigned long state;             /* FS_READY, FS_DEAD, etc. */
 	unsigned long flags;
-	void **ptr;			/* pointer for join() */
+	int           ref;
+	void          **ptr;             /* pointer for join() */
 };
 
-static unsigned int nr_fibers = 0;
-static struct fiber *fibers = NULL;
+static LIST_HEAD(ready_queue);  /* queue of ready fibers */
+static LIST_HEAD(free_list);    /* list of free TCBs */
+static unsigned free_count = 0; /* number of free TCBs */
 
-static LIST_HEAD(ready_queue); /* queue of ready fibers */
-
-struct fiber *current;		/* the running fiber */
-struct fiber *main_fiber;	/* the top-level fiber */
-
-/* grows the pool of TCBs */
-static void grow_fibers(void)
-{
-	unsigned long diff;
-	unsigned int old_size = nr_fibers;
-	struct fiber *old_ptr = fibers;
-
-	nr_fibers += ALLOC_STEP;
-	fibers = realloc(fibers, nr_fibers * sizeof(*fibers));
-
-	/* adjust pointers */
-	diff = ((unsigned long)fibers) - ((unsigned long) old_ptr);
-	adjust_ptr(current, diff);
-	for (ufiber_t i = 0; i < old_size; i++) {
-		adjust_ptr(fibers[i].chain.next, diff);
-		adjust_ptr(fibers[i].chain.prev, diff);
-		adjust_ptr(fibers[i].blocked.next, diff);
-		adjust_ptr(fibers[i].blocked.prev, diff);
-	}
-
-	for (ufiber_t i = old_size; i < nr_fibers; i++) {
-		fibers[i].fid = i << COOKIE_BITS;
-		fibers[i].state = FS_DEAD;
-	}
-}
+struct fiber *current;          /* the running fiber */
+struct fiber *root;             /* the top-level fiber */
 
 /* get a free TCB */
-static ufiber_t alloc_tcb(void)
+static struct fiber *alloc_tcb(void)
 {
-	ufiber_t i;
-
-	for (i = 0; i < nr_fibers; i++) {
-		if (fibers[i].state == FS_DEAD)
-			break;
+	if (!list_empty(&free_list)) {
+		free_count--;
+		return list_remove_head(&free_list, struct fiber, chain);
 	}
-
-	if (i == nr_fibers)
-		grow_fibers();
-
-	return i;
+	return malloc(sizeof(struct fiber));
 }
 
-/* We need to control the stack frame for this function.  To make sure gcc
- * doesn't do anything unexpected, it is written in asm.  Any additional work
- * can be performed in the wrapper below.
+/* Release a TCB.
+ *
+ * NOTE: TCBs can't be freed immediately on ufiber_exit() because the exiting
+ * thread still needs a stack for its final context_switch().  So instead of
+ * freeing its argument, this function will evict a TCB from the free list and
+ * free that instead.
+ */
+static void free_tcb(struct fiber *tcb)
+{
+	struct fiber *victim;
+
+	list_add(&tcb->chain, &free_list);
+	if (free_count < FREE_LIST_MAX) {
+		free_count++;
+		return;
+	}
+
+	victim = list_entry(free_list.prev, struct fiber, chain);
+	list_del(&victim->chain);
+	free(victim->stack);
+	free(victim);
+}
+
+/* We need to control the stack frame for this function, so it is written in
+ * asm.  Any additional work can be performed in the wrapper below.
  */
 void __context_switch(unsigned long *save_esp, unsigned long *rest_esp);
 asm("\n"
@@ -249,7 +216,7 @@ static inline void ready(struct fiber *tcb)
 	list_add_tail(&tcb->chain, &ready_queue);
 }
 
-/* choose a new fiber to run */
+/* choose a new fiber to run, and run it */
 static void schedule(void)
 {
 	struct fiber *tcb;
@@ -268,39 +235,34 @@ static void schedule(void)
 
 int ufiber_init(void)
 {
-	ufiber_t fid;
 	struct fiber *tcb;
 
-	fid = alloc_tcb();
-	tcb = &fibers[fid];
+	tcb = alloc_tcb();
 	tcb->state = FS_READY;
+	tcb->ref = 100;
 	INIT_LIST_HEAD(&tcb->blocked);
 
-	main_fiber = current = tcb;
+	root = current = tcb;
 	return 0;
 }
 
 ufiber_t ufiber_self(void)
 {
-	return current->fid;
+	return current;
 }
 
 int ufiber_create(ufiber_t *fiber, unsigned long flags,
 		void *(*start_routine)(void*), void *arg)
 {
-	ufiber_t fid;
 	struct fiber *tcb;
 	unsigned long *frame;
 
-	fid = alloc_tcb();
-	tcb = &fibers[fid];
-
-	tcb->fid = next_fid(tcb->fid);
+	tcb = alloc_tcb();
+	tcb->stack = malloc(STACK_SIZE);
+	tcb->ref = (fiber == NULL || flags & FF_NOREF) ? 1 : 2;
 	tcb->flags = flags;
-	tcb->state = FS_READY;
 	INIT_LIST_HEAD(&tcb->blocked);
 
-	tcb->stack = malloc(STACK_SIZE);
 	frame = (unsigned long*) (tcb->stack + STACK_SIZE - CONTEXT_SIZE - 128);
 	tcb->esp = (unsigned long) frame;
 
@@ -308,27 +270,19 @@ int ufiber_create(ufiber_t *fiber, unsigned long flags,
 	frame[SR_POS]  = (unsigned long) start_routine;
 	frame[RA_POS]  = (unsigned long) trampoline;
 
-	list_add_tail(&tcb->chain, &ready_queue);
+	ready(tcb);
 
-	*fiber = tcb->fid;
+	if (fiber != NULL)
+		*fiber = tcb;
 
 	return 0;
 }
 
 int ufiber_join(ufiber_t fiber, void **retval)
 {
-	unsigned long index = fiber_index(fiber);
-	struct fiber *tcb = &fibers[index];
-
-	if (index >= nr_fibers)
-		return -1;
-
-	if (tcb->fid != fiber || tcb->state == FS_DEAD)
-		return -1; /* stale fid */
-
 	current->state = FS_JOINING;
 	current->ptr = retval;
-	list_add_tail(&current->chain, &tcb->blocked);
+	list_add_tail(&current->chain, &fiber->blocked);
 
 	schedule();
 	return 0;
@@ -342,17 +296,11 @@ void ufiber_yeild(void)
 
 int ufiber_yeild_to(ufiber_t fiber)
 {
-	unsigned long index = fiber_index(fiber);
-	struct fiber *tcb = &fibers[index];
-
-	if (index >= nr_fibers)
-		return -1;
-
-	if (tcb->fid != fiber || tcb->state != FS_READY)
+	if (fiber->state != FS_READY)
 		return -1;
 
 	ready(current);
-	context_switch(tcb);
+	context_switch(fiber);
 	return 0;
 }
 
@@ -360,7 +308,7 @@ void ufiber_exit(void *retval)
 {
 	struct fiber *pos, *n;
 
-	if (current == main_fiber)
+	if (current == root)
 		exit(((long)retval));
 
 	current->state = FS_DEAD;
@@ -373,5 +321,18 @@ void ufiber_exit(void *retval)
 		list_add_tail(&pos->chain, &ready_queue);
 	}
 
+	ufiber_unref(current);
+
 	schedule();
+}
+
+void ufiber_ref(ufiber_t fiber)
+{
+	fiber->ref++;
+}
+
+void ufiber_unref(ufiber_t fiber)
+{
+	if (--fiber->ref == 0)
+		free_tcb(fiber);
 }

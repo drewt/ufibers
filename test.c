@@ -33,6 +33,7 @@ static void *consumer(void *data)
 
 	ufiber_create(&fid, 0, producer, NULL);
 	ufiber_join(fid, NULL);
+	ufiber_unref(fid);
 	printf("Consumer: 0x%p <- shared\n", shared);
 	return shared;
 }
@@ -45,5 +46,18 @@ int main(void)
 	ufiber_init();
 	ufiber_create(&fid, 0, consumer, NULL);
 	ufiber_join(fid, &val);
+	ufiber_unref(fid);
 	printf("Root:     0x%p <- child\n", val);
+
+	ufiber_create(NULL, 0, consumer, NULL);
+	ufiber_create(NULL, 0, producer, NULL);
+	ufiber_create(NULL, 0, producer, NULL);
+	ufiber_create(NULL, 0, producer, NULL);
+	ufiber_create(NULL, 0, producer, NULL);
+
+	ufiber_yeild();
+	ufiber_yeild();
+	ufiber_yeild();
+	ufiber_yeild();
+	ufiber_yeild();
 }

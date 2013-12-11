@@ -16,7 +16,9 @@
 #ifndef _FIBER_H_
 #define _FIBER_H_
 
-typedef unsigned long ufiber_t;
+#define FF_NOREF 1
+
+typedef struct fiber* ufiber_t;
 
 int ufiber_init(void);
 
@@ -32,5 +34,9 @@ void ufiber_yeild(void);
 int ufiber_yeild_to(ufiber_t fiber);
 
 void ufiber_exit(void *retval);
+
+void ufiber_ref(ufiber_t fiber);
+
+void ufiber_unref(ufiber_t fiber);
 
 #endif
