@@ -280,6 +280,9 @@ int ufiber_create(ufiber_t *fiber, unsigned long flags,
 
 int ufiber_join(ufiber_t fiber, void **retval)
 {
+	if (fiber->state == FS_DEAD)
+		return 0;
+
 	current->state = FS_JOINING;
 	current->ptr = retval;
 	list_add_tail(&current->chain, &fiber->blocked);
@@ -314,11 +317,10 @@ void ufiber_exit(void *retval)
 	current->state = FS_DEAD;
 
 	list_for_each_entry_safe(pos, n, &current->blocked, chain) {
-		pos->state = FS_READY;
 		if (pos->ptr != NULL)
 			*pos->ptr = retval;
 		list_del(&pos->chain);
-		list_add_tail(&pos->chain, &ready_queue);
+		ready(pos);
 	}
 
 	ufiber_unref(current);
