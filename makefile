@@ -7,6 +7,7 @@ man1ext = .1
 CC        = gcc
 CFLAGS    = -Wall -Wextra -Wno-unused-parameter -g
 ALLCFLAGS = $(CFLAGS) -std=gnu11
+AS        = as
 AR        = ar
 ARFLAGS   = rcs
 LD        = gcc
@@ -14,7 +15,7 @@ LDFLAGS   =
 
 target = ufibers.a
 
-libobjects = ufibers.o
+libobjects = arch.o ufibers.o
 objects = $(libobjects) test.o
 clean = $(objects) $(target) test
 

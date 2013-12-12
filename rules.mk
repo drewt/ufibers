@@ -32,6 +32,9 @@ distclean: clean
 %.o: %.c
 	$(call cmd,cc)
 
+%.o: %.S
+	$(call cmd,ccas)
+
 .%.d: %.c
 	$(call cmd,dep)
 
@@ -42,6 +45,12 @@ quiet_cmd_cc    = CC      $@
 # create archive
 quiet_cmd_ar    = AR      $@
       cmd_ar    = $(AR) $(ARFLAGS) $@ $^
+
+quiet_cmd_ccas  = AS      $@
+      cmd_ccas  = $(CC) -c $(CPPFLAGS) -o $@ $<
+
+quiet_cmd_as    = AS      $@
+      cmd_as    = $(AS) $(ASFLAGS) -o $@ $<
 
 # LD for programs; optional parameter: libraries
 quiet_cmd_ld    = LD      $@

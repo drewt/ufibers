@@ -16,36 +16,22 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-#include "ufibers.h"
+#include "config.h"
 #include "list.h"
-
-/* compiler */
-#if __GNUC__
-# if __i386__
-#  define ARCH_IA32 1
-# elif __amd64__
-#  define ARCH_AMD64 1
-# else
-#  error unsupported architecture
-# endif /* __i386__ */
-#else
-# error unsupported compiler
-#endif /* GCC */
+#include "ufibers.h"
 
 /* architecture */
 #if ARCH_AMD64
-#define CONTEXT_SIZE (8*16) /* 15 registers + eflags */
-#define RA_POS (16)         /* return address */
-#define SR_POS (14)         /* %rax */
-#define ARG_POS (9)         /* %rdi */
+#define CONTEXT_SIZE (8*7) /* 6 registers + eflags */
+#define RA_POS  (7)        /* return address */
+#define SR_POS  (2)        /* %r14 */
+#define ARG_POS (1)        /* %r15 */
 #elif ARCH_IA32
 #define CONTEXT_SIZE (4*8)
 #define RA_POS  (8)
 #define SR_POS  (6)         /* %eax */
 #define ARG_POS (5)         /* %ebx */
 #endif
-
-#define STACK_SIZE (8*1024*1024)
 
 /* must be at least 1 */
 #define FREE_LIST_MAX 1
@@ -72,8 +58,12 @@ static LIST_HEAD(ready_queue);  /* queue of ready fibers */
 static LIST_HEAD(free_list);    /* list of free TCBs */
 static unsigned free_count = 0; /* number of free TCBs */
 
-struct fiber *current;          /* the running fiber */
-struct fiber *root;             /* the top-level fiber */
+static struct fiber *current;   /* the running fiber */
+static struct fiber *root;      /* the top-level fiber */
+
+/* arch.S */
+extern void __context_switch(unsigned long *save_esp, unsigned long *rest_esp);
+extern void trampoline(void);
 
 /* get a free TCB */
 static struct fiber *alloc_tcb(void)
@@ -108,74 +98,6 @@ static void free_tcb(struct fiber *tcb)
 	free(victim);
 }
 
-/* We need to control the stack frame for this function, so it is written in
- * asm.  Any additional work can be performed in the wrapper below.
- */
-void __context_switch(unsigned long *save_esp, unsigned long *rest_esp);
-asm("\n"
-"__context_switch:			\n\t"
-#if ARCH_AMD64
-	/* save context */
-	"pushfq     			\n\t"
-	"pushq %rax			\n\t"
-	"pushq %rbx			\n\t"
-	"pushq %rcx			\n\t"
-	"pushq %rdx			\n\t"
-	"pushq %rsi			\n\t"
-	"pushq %rdi			\n\t"
-	"pushq %r8 			\n\t"
-	"pushq %r9 			\n\t"
-	"pushq %r10			\n\t"
-	"pushq %r11			\n\t"
-	"pushq %r12			\n\t"
-	"pushq %r13			\n\t"
-	"pushq %r14			\n\t"
-	"pushq %r15			\n\t"
-	"pushq %rbp			\n\t"
-	/* switch stacks */
-	"movq  %rsp, (%rdi)		\n\t"
-	"movq  (%rsi), %rsp		\n\t"
-	/* restore context */
-	"popq  %rbp			\n\t"
-	"popq  %r15			\n\t"
-	"popq  %r14			\n\t"
-	"popq  %r13			\n\t"
-	"popq  %r12			\n\t"
-	"popq  %r11			\n\t"
-	"popq  %r10			\n\t"
-	"popq  %r9 			\n\t"
-	"popq  %r8 			\n\t"
-	"popq  %rdi			\n\t"
-	"popq  %rsi			\n\t"
-	"popq  %rdx			\n\t"
-	"popq  %rcx			\n\t"
-	"popq  %rbx			\n\t"
-	"popq  %rax			\n\t"
-	"popfq     			\n\t"
-	"ret				\n\t"
-#elif ARCH_IA32
-	"pushfl				\n\t"
-	"pushl %eax			\n\t"
-	"pushl %ebx			\n\t"
-	"pushl %ecx			\n\t"
-	"pushl %edx			\n\t"
-	"pushl %esi			\n\t"
-	"pushl %edi			\n\t"
-	"pushl %ebp			\n\t"
-	"movl  %esp, -4(%esp)		\n\t"
-	"movl  -8(%esp), %esp		\n\t"
-	"popl  %ebp			\n\t"
-	"popl  %edi			\n\t"
-	"popl  %esi			\n\t"
-	"popl  %edx			\n\t"
-	"popl  %ecx			\n\t"
-	"popl  %ebx			\n\t"
-	"popl  %eax			\n\t"
-	"popfl				\n\t"
-	"ret				\n\t"
-#endif
-);
-
 static void context_switch(struct fiber *fiber)
 {
 	unsigned long *save_esp = &current->esp;
@@ -186,28 +108,6 @@ static void context_switch(struct fiber *fiber)
 	current = fiber;
 	__context_switch(save_esp, &fiber->esp);
 }
-
-/* This is the trampoline to start a fiber.  It calls the fiber's start routine
- * and then exits.
- *
- * The trampoline is entered from the 'ret' in __context_switch().
- * fiber_create() sets up the stack so that the fiber's start routine and its
- * argument are in registers when this occurs.
- */
-void trampoline(void);
-asm("\n"
-"trampoline:			\n\t"
-#if ARCH_AMD64
-	"call *%rax		\n\t"
-	"movq %rax, %rdi	\n\t"
-	"call ufiber_exit	\n\t"
-#elif ARCH_IA32
-	"pushl %ebx		\n\t"
-	"call  *%eax		\n\t"
-	"pushl %eax		\n\t"
-	"call ufiber_exit	\n\t"
-#endif
-);
 
 /* add 'tcb' to the ready queue */
 static inline void ready(struct fiber *tcb)
