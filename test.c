@@ -18,46 +18,55 @@
 
 #include "ufibers.h"
 
-void *shared = NULL;
+#define BUF_LEN 8
+#define NR_FIBERS 16
+
+#define next(pos) (((pos) + 1) % BUF_LEN)
+
+static long shared[BUF_LEN];
+static size_t wpos = 0;
+static size_t rpos = 0;
 
 static void *producer(void *data)
 {
-	shared = producer;
-	printf("Producer: 0x%p -> shared\n", shared);
+	if ((long)data % 2 == 0)
+		ufiber_yeild();
+
+	while (next(wpos) == rpos)
+		ufiber_yeild();
+
+	shared[wpos] = (long) data;
+	wpos = next(wpos);
+
 	return NULL;
 }
 
 static void *consumer(void *data)
 {
-	ufiber_t fid;
+	while (rpos == wpos)
+		ufiber_yeild();
 
-	ufiber_create(&fid, 0, producer, NULL);
-	ufiber_join(fid, NULL);
-	ufiber_unref(fid);
-	printf("Consumer: 0x%p <- shared\n", shared);
-	return shared;
+	printf("read %ld\n", shared[rpos]);
+	rpos = next(rpos);
+
+	return NULL;
 }
 
 int main(void)
 {
-	ufiber_t fid;
-	void *val;
+	ufiber_t fids[NR_FIBERS * 2];
+	void *rv;
 
 	ufiber_init();
-	ufiber_create(&fid, 0, consumer, NULL);
-	ufiber_join(fid, &val);
-	ufiber_unref(fid);
-	printf("Root:     0x%p <- child\n", val);
+	for (unsigned long i = 0; i < NR_FIBERS; i++)
+		ufiber_create(&fids[i], 0, producer, (void*) i);
+	for (int i = 0; i < NR_FIBERS; i++)
+		ufiber_create(&fids[i + NR_FIBERS], 0, consumer, NULL);
 
-	ufiber_create(NULL, 0, consumer, NULL);
-	ufiber_create(NULL, 0, producer, NULL);
-	ufiber_create(NULL, 0, producer, NULL);
-	ufiber_create(NULL, 0, producer, NULL);
-	ufiber_create(NULL, 0, producer, NULL);
+	for (int i = 0; i < NR_FIBERS * 2; i++) {
+		ufiber_join(fids[i], &rv);
+		ufiber_unref(fids[i]);
+	}
 
-	ufiber_yeild();
-	ufiber_yeild();
-	ufiber_yeild();
-	ufiber_yeild();
-	ufiber_yeild();
+	return 0;
 }
