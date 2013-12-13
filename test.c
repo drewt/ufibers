@@ -27,6 +27,18 @@ static unsigned long shared[BUF_LEN];
 static size_t wpos = 0;
 static size_t rpos = 0;
 
+static inline void yeild_n(unsigned n)
+{
+	for (unsigned i = 0; i < n; i++)
+		ufiber_yeild();
+}
+
+static inline void yeild_to_n(ufiber_t to, unsigned n)
+{
+	for (unsigned i = 0; i < n; i++)
+		ufiber_yeild_to(to);
+}
+
 static int pc(void *(*producer)(void*), void *(*consumer)(void*))
 {
 	ufiber_t fids[NR_FIBERS * 2];
@@ -156,8 +168,7 @@ static void *read_thread(void *data)
 	unsigned long rv;
 	ufiber_rwlock_rdlock(&rwlock);
 	/* make sure the writer blocks before unlocking */
-	for (int i = 0; i < NR_FIBERS-1; i++)
-		ufiber_yeild_to(writer);
+	yeild_to_n(writer, NR_FIBERS-1);
 	rv = *shared;
 	ufiber_rwlock_unlock(&rwlock);
 	return (void*) rv;
@@ -166,8 +177,7 @@ static void *read_thread(void *data)
 static void *write_thread(void *data)
 {
 	/* allow all readers to acquire the lock */
-	for (int i = 0; i < NR_FIBERS - 1; i++)
-		ufiber_yeild();
+	yeild_n(NR_FIBERS-1);
 	ufiber_rwlock_wrlock(&rwlock);
 	*shared = (unsigned long) data;
 	ufiber_rwlock_unlock(&rwlock);
@@ -210,14 +220,12 @@ static void *wait_thread(void *data)
 
 static void *wake_thread(void *data)
 {
-	for (int i = 0; i < NR_FIBERS-1; i++)
-		ufiber_yeild();
+	yeild_n(NR_FIBERS-1);
 
 	*shared = 1;
 	ufiber_cond_signal(&cond);
 
-	for (int i = 0; i < NR_FIBERS-1; i++)
-		ufiber_yeild();
+	yeild_n(NR_FIBERS-1);
 
 	*shared = 0;
 	ufiber_cond_broadcast(&cond);
