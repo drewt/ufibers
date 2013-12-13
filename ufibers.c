@@ -254,13 +254,6 @@ void ufiber_unref(ufiber_t fiber)
 		free_tcb(fiber);
 }
 
-int ufiber_mutex_init(ufiber_mutex_t *mutex)
-{
-	INIT_LIST_HEAD(&mutex->blocked);
-	mutex->locked = 0;
-	return 0;
-}
-
 int ufiber_mutex_destroy(ufiber_mutex_t *mutex)
 {
 	wake_all(&mutex->blocked, (void*) -1L);
@@ -271,13 +264,13 @@ int ufiber_mutex_lock(ufiber_mutex_t *mutex)
 {
 	unsigned long error = 0;
 
-	if (mutex->locked)
+	if (mutex->count)
 		block(current, &mutex->blocked, (void**) &error);
 
 	if (error)
 		return error;
 
-	mutex->locked = 1;
+	mutex->count = 1;
 	return 0;
 }
 
@@ -286,11 +279,31 @@ int ufiber_mutex_unlock(ufiber_mutex_t *mutex)
 	struct fiber *next;
 
 	if (list_empty(&mutex->blocked)) {
-		mutex->locked = 0;
+		mutex->count = 0;
 		return 0;
 	}
 
 	next = list_remove_head(&mutex->blocked, struct fiber, chain);
 	ready(next);
 	return 0;
+}
+
+int ufiber_barrier_destroy(ufiber_barrier_t *barrier)
+{
+	wake_all(&barrier->blocked, (void*) ((unsigned long) EINVAL));
+	return 0;
+}
+
+int ufiber_barrier_wait(ufiber_barrier_t *barrier)
+{
+	unsigned long rv = 0;
+
+	if (--barrier->count == 0) {
+		wake_all(&barrier->blocked, (void*) 0L);
+		rv = UFIBER_BARRIER_SERIAL_FIBER;
+	} else {
+		block(current, &barrier->blocked, (void**) &rv);
+	}
+
+	return rv;
 }

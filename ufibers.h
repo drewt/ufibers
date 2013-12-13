@@ -22,12 +22,16 @@
 
 #define FF_NOREF 1
 
-typedef struct fiber* ufiber_t;
+#define UFIBER_BARRIER_SERIAL_FIBER (-1)
 
-typedef struct ufiber_mutex {
+struct ufiber_blocklist {
 	struct list_head blocked;
-	int locked;
-} ufiber_mutex_t;
+	unsigned count;
+};
+
+typedef struct fiber* ufiber_t;
+typedef struct ufiber_blocklist ufiber_mutex_t;
+typedef struct ufiber_blocklist ufiber_barrier_t;
 
 int ufiber_init(void);
 
@@ -48,7 +52,12 @@ void ufiber_ref(ufiber_t fiber);
 
 void ufiber_unref(ufiber_t fiber);
 
-int ufiber_mutex_init(ufiber_mutex_t *mutex);
+static inline int ufiber_mutex_init(ufiber_mutex_t *mutex)
+{
+	INIT_LIST_HEAD(&mutex->blocked);
+	mutex->count = 0;
+	return 0;
+}
 
 int ufiber_mutex_destroy(ufiber_mutex_t *mutex);
 
@@ -58,9 +67,21 @@ int ufiber_mutex_unlock(ufiber_mutex_t *mutex);
 
 static inline int ufiber_mutex_trylock(ufiber_mutex_t *mutex)
 {
-	if (mutex->locked)
+	if (mutex->count)
 		return EBUSY;
 	return ufiber_mutex_lock(mutex);
 }
+
+static inline int ufiber_barrier_init(ufiber_barrier_t *barrier,
+		unsigned count)
+{
+	INIT_LIST_HEAD(&barrier->blocked);
+	barrier->count = count;
+	return 0;
+}
+
+int ufiber_barrier_destroy(ufiber_barrier_t *barrier);
+
+int ufiber_barrier_wait(ufiber_barrier_t *barrier);
 
 #endif

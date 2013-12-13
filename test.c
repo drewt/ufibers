@@ -97,7 +97,7 @@ static int mutex_test(void)
 	ufiber_mutex_init(&mutex);
 
 	for (unsigned long i = 0; i < NR_FIBERS; i++)
-		ufiber_create(&fids[i], i, mutex_thread, (void*) (i+1));
+		ufiber_create(&fids[i], 0, mutex_thread, (void*) (i+1));
 
 	for (int i = 0; i < NR_FIBERS; i++) {
 		ufiber_join(fids[i], NULL);
@@ -105,8 +105,47 @@ static int mutex_test(void)
 	}
 
 	ufiber_mutex_destroy(&mutex);
-
 	return 0; // TODO: collect and check values
+}
+
+static ufiber_barrier_t barrier;
+
+static void *barrier_thread(void *data)
+{
+	ufiber_barrier_wait(&barrier);
+	shared[0]++;
+	return NULL;
+}
+
+static int barrier_test(void)
+{
+	ufiber_t fids[NR_FIBERS];
+	int rv = 0;
+
+	*shared = 0;
+	ufiber_barrier_init(&barrier, NR_FIBERS);
+
+	for (int i = 0; i < NR_FIBERS-1; i++)
+		ufiber_create(&fids[i], 0, barrier_thread, NULL);
+
+	for (int i = 0; i < NR_FIBERS-1; i++)
+		ufiber_yeild();
+
+	if (*shared != 0)
+		rv = -1;
+
+	ufiber_create(&fids[NR_FIBERS-1], 0, barrier_thread, NULL);
+
+	for (int i = 0; i < NR_FIBERS; i++) {
+		ufiber_join(fids[i], NULL);
+		ufiber_unref(fids[i]);
+	}
+
+	if (*shared != NR_FIBERS)
+		rv = -2;
+
+	ufiber_barrier_destroy(&barrier);
+	return rv;
 }
 
 static void run_test(char *name, int (*test)(void))
@@ -123,4 +162,5 @@ int main(void)
 	ufiber_init();
 	run_test("yeild", yeild_test);
 	run_test("mutex", mutex_test);
+	run_test("barrier", barrier_test);
 }
