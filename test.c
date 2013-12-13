@@ -197,6 +197,58 @@ static int rwlock_test(void)
 	return 0;
 }
 
+ufiber_cond_t cond;
+
+static void *wait_thread(void *data)
+{
+	unsigned long rv;
+	ufiber_cond_wait(&cond, NULL);
+	rv = *shared;
+	ufiber_exit((void*)rv);
+	return (void*) rv;
+}
+
+static void *wake_thread(void *data)
+{
+	for (int i = 0; i < NR_FIBERS-1; i++)
+		ufiber_yeild();
+
+	*shared = 1;
+	ufiber_cond_signal(&cond);
+
+	for (int i = 0; i < NR_FIBERS-1; i++)
+		ufiber_yeild();
+
+	*shared = 0;
+	ufiber_cond_broadcast(&cond);
+
+	return NULL;
+}
+
+static int cond_test(void)
+{
+	ufiber_t fids[NR_FIBERS];
+	unsigned long v = 0, acc = 0;
+
+	*shared = 0;
+	ufiber_cond_init(&cond);
+
+	ufiber_create(&fids[0], 0, wake_thread, NULL);
+	for (int i = 1; i < NR_FIBERS; i++)
+		ufiber_create(&fids[i], 0, wait_thread, NULL);
+
+	ufiber_join(fids[0], NULL);
+	for (int i = 1; i < NR_FIBERS; i++) {
+		ufiber_join(fids[i], (void**) &v);
+		ufiber_unref(fids[i]);
+		acc += v;
+	}
+
+	if (acc != 1)
+		return -1;
+	return 0;
+}
+
 static void run_test(char *name, int (*test)(void))
 {
 	int status;
@@ -213,4 +265,5 @@ int main(void)
 	run_test("mutex", mutex_test);
 	run_test("barrier", barrier_test);
 	run_test("rwlock", rwlock_test);
+	run_test("cond", cond_test);
 }

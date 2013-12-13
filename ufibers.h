@@ -39,6 +39,7 @@ typedef struct fiber* ufiber_t;
 typedef struct ufiber_blocklist ufiber_mutex_t;
 typedef struct ufiber_blocklist ufiber_barrier_t;
 typedef struct ufiber_rwlock ufiber_rwlock_t;
+typedef struct list_head ufiber_cond_t;
 
 int ufiber_init(void);
 
@@ -120,5 +121,19 @@ static inline int ufiber_rwlock_trywrlock(ufiber_rwlock_t *lock)
 }
 
 int ufiber_rwlock_unlock(ufiber_rwlock_t *lock);
+
+static inline int ufiber_cond_init(ufiber_cond_t *cond)
+{
+	INIT_LIST_HEAD(cond);
+	return 0;
+}
+
+int ufiber_cond_destroy(ufiber_cond_t *cond);
+
+int ufiber_cond_wait(ufiber_cond_t *cond, ufiber_mutex_t *mutex);
+
+int ufiber_cond_broadcast(ufiber_cond_t *cond);
+
+int ufiber_cond_signal(ufiber_cond_t *cond);
 
 #endif

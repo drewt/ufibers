@@ -53,6 +53,7 @@ struct fiber {
 	unsigned long state;             /* FS_READY, FS_DEAD, etc. */
 	unsigned long flags;
 	int           ref;
+	void          *rv;               /* return value */
 	void          **ptr;             /* pointer for join() */
 };
 
@@ -210,10 +211,10 @@ int ufiber_create(ufiber_t *fiber, unsigned long flags,
 
 int ufiber_join(ufiber_t fiber, void **retval)
 {
-	if (fiber->state == FS_DEAD)
-		return 0;
-
-	block(current, &fiber->blocked, retval);
+	if (fiber->state == FS_DEAD && retval != NULL)
+		*retval = fiber->rv;
+	else if (fiber->state != FS_DEAD)
+		block(current, &fiber->blocked, retval);
 	return 0;
 }
 
@@ -239,6 +240,7 @@ void ufiber_exit(void *retval)
 	if (current == root)
 		exit(((long)retval));
 
+	current->rv = retval;
 	current->state = FS_DEAD;
 	wake_all(&current->blocked, retval);
 	ufiber_unref(current);
@@ -370,5 +372,40 @@ int ufiber_rwlock_unlock(ufiber_rwlock_t *lock)
 		next = dequeue(&lock->wrblocked);
 		ready(next);
 	}
+	return 0;
+}
+
+int ufiber_cond_destroy(ufiber_cond_t *cond)
+{
+	return 0;
+}
+
+int ufiber_cond_wait(ufiber_cond_t *cond, ufiber_mutex_t *mutex)
+{
+	unsigned long error = 0;
+
+	if (mutex != NULL && (error = ufiber_mutex_unlock(mutex) != 0))
+		return error;
+
+	block(current, cond, (void*) &error);
+	if (error)
+		return error;
+
+	if (mutex != NULL)
+		error = ufiber_mutex_unlock(mutex);
+
+	return error;
+}
+
+int ufiber_cond_broadcast(ufiber_cond_t *cond)
+{
+	wake_all(cond, (void*) 0L);
+	return 0;
+}
+
+int ufiber_cond_signal(ufiber_cond_t *cond)
+{
+	if (!list_empty(cond))
+		ready(dequeue(cond));
 	return 0;
 }
