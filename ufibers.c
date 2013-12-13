@@ -153,6 +153,12 @@ static inline void wake(struct fiber *tcb, void *retval)
 	ready(tcb);
 }
 
+static inline void wake_one(struct list_head *list, void *retval)
+{
+	if (!list_empty(list))
+		wake(list_entry(list->next, struct fiber, chain), retval);
+}
+
 /* wake all fibers on 'list', retunning 'val' to each */
 static inline void wake_all(struct list_head *list, void *val)
 {
@@ -281,15 +287,10 @@ int ufiber_mutex_lock(ufiber_mutex_t *mutex)
 
 int ufiber_mutex_unlock(ufiber_mutex_t *mutex)
 {
-	struct fiber *next;
-
-	if (list_empty(&mutex->blocked)) {
+	if (list_empty(&mutex->blocked))
 		mutex->count = 0;
-		return 0;
-	}
-
-	next = list_remove_head(&mutex->blocked, struct fiber, chain);
-	ready(next);
+	else
+		wake_one(&mutex->blocked, (void*) 0L);
 	return 0;
 }
 
@@ -368,9 +369,8 @@ int ufiber_rwlock_unlock(ufiber_rwlock_t *lock)
 			next = dequeue(&lock->wrblocked);
 			ready(next);
 		}
-	} else if (--lock->reading == 0 && !list_empty(&lock->wrblocked)) {
-		next = dequeue(&lock->wrblocked);
-		ready(next);
+	} else if (--lock->reading == 0) {
+		wake_one(&lock->wrblocked, (void*) 0L);
 	}
 	return 0;
 }
@@ -405,7 +405,6 @@ int ufiber_cond_broadcast(ufiber_cond_t *cond)
 
 int ufiber_cond_signal(ufiber_cond_t *cond)
 {
-	if (!list_empty(cond))
-		ready(dequeue(cond));
+	wake_one(cond, (void*) 0L);
 	return 0;
 }
