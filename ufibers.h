@@ -16,9 +16,18 @@
 #ifndef _FIBER_H_
 #define _FIBER_H_
 
+#include <errno.h>
+
+#include "list.h"
+
 #define FF_NOREF 1
 
 typedef struct fiber* ufiber_t;
+
+typedef struct ufiber_mutex {
+	struct list_head blocked;
+	int locked;
+} ufiber_mutex_t;
 
 int ufiber_init(void);
 
@@ -38,5 +47,20 @@ void ufiber_exit(void *retval);
 void ufiber_ref(ufiber_t fiber);
 
 void ufiber_unref(ufiber_t fiber);
+
+int ufiber_mutex_init(ufiber_mutex_t *mutex);
+
+int ufiber_mutex_destroy(ufiber_mutex_t *mutex);
+
+int ufiber_mutex_lock(ufiber_mutex_t *mutex);
+
+int ufiber_mutex_unlock(ufiber_mutex_t *mutex);
+
+static inline int ufiber_mutex_trylock(ufiber_mutex_t *mutex)
+{
+	if (mutex->locked)
+		return EBUSY;
+	return ufiber_mutex_lock(mutex);
+}
 
 #endif

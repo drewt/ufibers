@@ -39,7 +39,7 @@
 enum {
 	FS_DEAD = 0,
 	FS_READY,
-	FS_JOINING,
+	FS_BLOCKED,
 };
 
 /* fiber TCB */
@@ -109,13 +109,6 @@ static void context_switch(struct fiber *fiber)
 	__context_switch(save_esp, &fiber->esp);
 }
 
-/* add 'tcb' to the ready queue */
-static inline void ready(struct fiber *tcb)
-{
-	tcb->state = FS_READY;
-	list_add_tail(&tcb->chain, &ready_queue);
-}
-
 /* choose a new fiber to run, and run it */
 static void schedule(void)
 {
@@ -129,6 +122,41 @@ static void schedule(void)
 	tcb = list_remove_head(&ready_queue, struct fiber, chain);
 
 	context_switch(tcb);
+}
+
+/* block 'fiber' on a given wait queue */
+static inline void block(struct fiber *fiber, struct list_head *list,
+		void **rv)
+{
+	fiber->ptr = rv;
+	fiber->state = FS_BLOCKED;
+	list_add_tail(&fiber->chain, list);
+	schedule();
+}
+
+/* add 'fiber' to the ready queue */
+static inline void ready(struct fiber *fiber)
+{
+	fiber->state = FS_READY;
+	list_add_tail(&fiber->chain, &ready_queue);
+}
+
+/* unblock 'fiber', returning 'retval' */
+static inline void wake(struct fiber *tcb, void *retval)
+{
+	if (tcb->ptr != NULL)
+		*tcb->ptr = retval;
+	list_del(&tcb->chain);
+	ready(tcb);
+}
+
+/* wake all fibers on 'list', retunning 'val' to each */
+static inline void wake_all(struct list_head *list, void *val)
+{
+	struct fiber *pos, *n;
+
+	list_for_each_entry_safe(pos, n, list, chain)
+		wake(pos, val);
 }
 
 /* API */
@@ -183,11 +211,7 @@ int ufiber_join(ufiber_t fiber, void **retval)
 	if (fiber->state == FS_DEAD)
 		return 0;
 
-	current->state = FS_JOINING;
-	current->ptr = retval;
-	list_add_tail(&current->chain, &fiber->blocked);
-
-	schedule();
+	block(current, &fiber->blocked, retval);
 	return 0;
 }
 
@@ -209,20 +233,11 @@ int ufiber_yeild_to(ufiber_t fiber)
 
 void ufiber_exit(void *retval)
 {
-	struct fiber *pos, *n;
-
 	if (current == root)
 		exit(((long)retval));
 
 	current->state = FS_DEAD;
-
-	list_for_each_entry_safe(pos, n, &current->blocked, chain) {
-		if (pos->ptr != NULL)
-			*pos->ptr = retval;
-		list_del(&pos->chain);
-		ready(pos);
-	}
-
+	wake_all(&current->blocked, retval);
 	ufiber_unref(current);
 
 	schedule();
@@ -237,4 +252,45 @@ void ufiber_unref(ufiber_t fiber)
 {
 	if (--fiber->ref == 0)
 		free_tcb(fiber);
+}
+
+int ufiber_mutex_init(ufiber_mutex_t *mutex)
+{
+	INIT_LIST_HEAD(&mutex->blocked);
+	mutex->locked = 0;
+	return 0;
+}
+
+int ufiber_mutex_destroy(ufiber_mutex_t *mutex)
+{
+	wake_all(&mutex->blocked, (void*) -1L);
+	return 0;
+}
+
+int ufiber_mutex_lock(ufiber_mutex_t *mutex)
+{
+	unsigned long error = 0;
+
+	if (mutex->locked)
+		block(current, &mutex->blocked, (void**) &error);
+
+	if (error)
+		return error;
+
+	mutex->locked = 1;
+	return 0;
+}
+
+int ufiber_mutex_unlock(ufiber_mutex_t *mutex)
+{
+	struct fiber *next;
+
+	if (list_empty(&mutex->blocked)) {
+		mutex->locked = 0;
+		return 0;
+	}
+
+	next = list_remove_head(&mutex->blocked, struct fiber, chain);
+	ready(next);
+	return 0;
 }
