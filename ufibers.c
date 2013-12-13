@@ -227,6 +227,7 @@ int ufiber_yeild_to(ufiber_t fiber)
 		return -1;
 
 	ready(current);
+	list_del(&fiber->chain);
 	context_switch(fiber);
 	return 0;
 }
