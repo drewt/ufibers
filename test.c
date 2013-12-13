@@ -129,7 +129,7 @@ static int barrier_test(void)
 		ufiber_create(&fids[i], 0, barrier_thread, NULL);
 
 	for (int i = 0; i < NR_FIBERS-1; i++)
-		ufiber_yeild();
+		ufiber_yeild_to(fids[i]);
 
 	if (*shared != 0)
 		rv = -1;
@@ -148,6 +148,55 @@ static int barrier_test(void)
 	return rv;
 }
 
+static ufiber_rwlock_t rwlock;
+static ufiber_t writer;
+
+static void *read_thread(void *data)
+{
+	unsigned long rv;
+	ufiber_rwlock_rdlock(&rwlock);
+	/* make sure the writer blocks before unlocking */
+	for (int i = 0; i < NR_FIBERS-1; i++)
+		ufiber_yeild_to(writer);
+	rv = *shared;
+	ufiber_rwlock_unlock(&rwlock);
+	return (void*) rv;
+}
+
+static void *write_thread(void *data)
+{
+	/* allow all readers to acquire the lock */
+	for (int i = 0; i < NR_FIBERS - 1; i++)
+		ufiber_yeild();
+	ufiber_rwlock_wrlock(&rwlock);
+	*shared = (unsigned long) data;
+	ufiber_rwlock_unlock(&rwlock);
+	return NULL;
+}
+
+static int rwlock_test(void)
+{
+	ufiber_t readers[NR_FIBERS-1];
+	unsigned long v = 0, acc = 0;
+
+	*shared = 0;
+	ufiber_rwlock_init(&rwlock);
+
+	ufiber_create(&writer, 0, write_thread, (void*) 1L);
+	for (int i = 0; i < NR_FIBERS-1; i++)
+		ufiber_create(&readers[i], 0, read_thread, NULL);
+
+	for (int i = 0; i < NR_FIBERS-1; i++) {
+		ufiber_join(readers[i], (void**) &v);
+		acc += v;
+	}
+
+	if (acc != 0)
+		return -1;
+
+	return 0;
+}
+
 static void run_test(char *name, int (*test)(void))
 {
 	int status;
@@ -163,4 +212,5 @@ int main(void)
 	run_test("yeild", yeild_test);
 	run_test("mutex", mutex_test);
 	run_test("barrier", barrier_test);
+	run_test("rwlock", rwlock_test);
 }

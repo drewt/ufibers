@@ -29,9 +29,16 @@ struct ufiber_blocklist {
 	unsigned count;
 };
 
+struct ufiber_rwlock {
+	struct list_head rdblocked;
+	struct list_head wrblocked;
+	long reading;
+};
+
 typedef struct fiber* ufiber_t;
 typedef struct ufiber_blocklist ufiber_mutex_t;
 typedef struct ufiber_blocklist ufiber_barrier_t;
+typedef struct ufiber_rwlock ufiber_rwlock_t;
 
 int ufiber_init(void);
 
@@ -83,5 +90,35 @@ static inline int ufiber_barrier_init(ufiber_barrier_t *barrier,
 int ufiber_barrier_destroy(ufiber_barrier_t *barrier);
 
 int ufiber_barrier_wait(ufiber_barrier_t *barrier);
+
+static inline int ufiber_rwlock_init(ufiber_rwlock_t *lock)
+{
+	INIT_LIST_HEAD(&lock->rdblocked);
+	INIT_LIST_HEAD(&lock->wrblocked);
+	lock->reading = 0;
+	return 0;
+}
+
+int ufiber_rwlock_destroy(ufiber_rwlock_t *lock);
+
+int ufiber_rwlock_rdlock(ufiber_rwlock_t *lock);
+
+int ufiber_rwlock_wrlock(ufiber_rwlock_t *lock);
+
+static inline int ufiber_rwlock_tryrdlock(ufiber_rwlock_t *lock)
+{
+	if (lock->reading == -1 || !list_empty(&lock->wrblocked))
+		return EBUSY;
+	return ufiber_rwlock_rdlock(lock);
+}
+
+static inline int ufiber_rwlock_trywrlock(ufiber_rwlock_t *lock)
+{
+	if (lock->reading > 0)
+		return EBUSY;
+	return ufiber_rwlock_wrlock(lock);
+}
+
+int ufiber_rwlock_unlock(ufiber_rwlock_t *lock);
 
 #endif

@@ -36,6 +36,8 @@
 /* must be at least 1 */
 #define FREE_LIST_MAX 1
 
+#define dequeue(q) list_remove_head(q, struct fiber, chain)
+
 enum {
 	FS_DEAD = 0,
 	FS_READY,
@@ -307,4 +309,66 @@ int ufiber_barrier_wait(ufiber_barrier_t *barrier)
 	}
 
 	return rv;
+}
+
+/*
+ * rwlocks
+ *
+ * A value of -1 for lock->reading means that it is currently write-locked.
+ * When unlocking a write-locked rwlock, queued writers are unblocked first.
+ * Only when there are no writers left are any queued readers unblocked.
+ */
+
+int ufiber_rwlock_destroy(ufiber_rwlock_t *lock)
+{
+	wake_all(&lock->rdblocked, (void*) ((unsigned long) EINVAL));
+	wake_all(&lock->wrblocked, (void*) ((unsigned long) EINVAL));
+	return 0;
+}
+
+int ufiber_rwlock_rdlock(ufiber_rwlock_t *lock)
+{
+	unsigned long error = 0;
+
+	if (lock->reading == -1 || !list_empty(&lock->wrblocked))
+		block(current, &lock->rdblocked, (void**) &error);
+
+	if (error)
+		return error;
+
+	lock->reading++;
+	return 0;
+}
+
+int ufiber_rwlock_wrlock(ufiber_rwlock_t *lock)
+{
+	unsigned long error = 0;
+
+	if (lock->reading > 0)
+		block(current, &lock->wrblocked, (void*) &error);
+
+	if (error)
+		return error;
+
+	lock->reading = -1;
+	return 0;
+}
+
+int ufiber_rwlock_unlock(ufiber_rwlock_t *lock)
+{
+	struct fiber *next;
+
+	if (lock->reading == -1) {
+		if (list_empty(&lock->wrblocked)) {
+			lock->reading = 0;
+			wake_all(&lock->rdblocked, (void*) 0L);
+		} else {
+			next = dequeue(&lock->wrblocked);
+			ready(next);
+		}
+	} else if (--lock->reading == 0 && !list_empty(&lock->wrblocked)) {
+		next = dequeue(&lock->wrblocked);
+		ready(next);
+	}
+	return 0;
 }
