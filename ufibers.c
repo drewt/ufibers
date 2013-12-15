@@ -196,7 +196,7 @@ int ufiber_create(ufiber_t *fiber, unsigned long flags,
 
 	tcb = alloc_tcb();
 	tcb->stack = malloc(STACK_SIZE);
-	tcb->ref = (fiber == NULL || flags & FF_NOREF) ? 1 : 2;
+	tcb->ref = (fiber == NULL || flags & UFIBER_DETACHED) ? 1 : 2;
 	tcb->flags = flags;
 	INIT_LIST_HEAD(&tcb->blocked);
 

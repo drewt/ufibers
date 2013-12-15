@@ -20,7 +20,7 @@
 
 #include "list.h"
 
-#define FF_NOREF 1
+#define UFIBER_DETACHED 1
 
 #define UFIBER_BARRIER_SERIAL_FIBER (-1)
 
