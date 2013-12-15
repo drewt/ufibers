@@ -50,10 +50,8 @@ static int pc(void *(*producer)(void*), void *(*consumer)(void*))
 	for (int i = 0; i < NR_FIBERS; i++)
 		ufiber_create(&fids[i + NR_FIBERS], 0, consumer, NULL);
 
-	for (int i = 0; i < NR_FIBERS * 2; i++) {
+	for (int i = 0; i < NR_FIBERS * 2; i++)
 		ufiber_join(fids[i], NULL);
-		ufiber_unref(fids[i]);
-	}
 	return 0; // TODO: collect and check values
 }
 
@@ -111,10 +109,8 @@ static int mutex_test(void)
 	for (unsigned long i = 0; i < NR_FIBERS; i++)
 		ufiber_create(&fids[i], 0, mutex_thread, (void*) (i+1));
 
-	for (int i = 0; i < NR_FIBERS; i++) {
+	for (int i = 0; i < NR_FIBERS; i++)
 		ufiber_join(fids[i], NULL);
-		ufiber_unref(fids[i]);
-	}
 
 	ufiber_mutex_destroy(&mutex);
 	return 0; // TODO: collect and check values
@@ -148,10 +144,8 @@ static int barrier_test(void)
 
 	ufiber_create(&fids[NR_FIBERS-1], 0, barrier_thread, NULL);
 
-	for (int i = 0; i < NR_FIBERS; i++) {
+	for (int i = 0; i < NR_FIBERS; i++)
 		ufiber_join(fids[i], NULL);
-		ufiber_unref(fids[i]);
-	}
 
 	if (*shared != NR_FIBERS)
 		rv = -2;
@@ -200,6 +194,7 @@ static int rwlock_test(void)
 		ufiber_join(readers[i], (void**) &v);
 		acc += v;
 	}
+	ufiber_join(writer, NULL);
 
 	if (acc != 0)
 		return -1;
@@ -248,7 +243,6 @@ static int cond_test(void)
 	ufiber_join(fids[0], NULL);
 	for (int i = 1; i < NR_FIBERS; i++) {
 		ufiber_join(fids[i], (void**) &v);
-		ufiber_unref(fids[i]);
 		acc += v;
 	}
 

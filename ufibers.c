@@ -221,6 +221,7 @@ int ufiber_join(ufiber_t fiber, void **retval)
 		*retval = fiber->rv;
 	else if (fiber->state != FS_DEAD)
 		block(current, &fiber->blocked, retval);
+	ufiber_unref(fiber);
 	return 0;
 }
 
