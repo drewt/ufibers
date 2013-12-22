@@ -27,10 +27,10 @@
 #define SR_POS  (2)        /* %r14 */
 #define ARG_POS (1)        /* %r15 */
 #elif ARCH_IA32
-#define CONTEXT_SIZE (4*8)
-#define RA_POS  (8)
-#define SR_POS  (6)         /* %eax */
-#define ARG_POS (5)         /* %ebx */
+#define CONTEXT_SIZE (4*5)
+#define RA_POS  (5)
+#define SR_POS  (2)         /* %esi */
+#define ARG_POS (1)         /* %edi */
 #endif
 
 /* must be at least 1 */

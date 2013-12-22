@@ -47,30 +47,26 @@ trampoline:
 
 #elif ARCH_IA32
 __context_switch:
+	movl  4(%esp), %eax
+	movl  8(%esp), %ecx
 	pushfl
-	pushl %eax
 	pushl %ebx
-	pushl %ecx
-	pushl %edx
 	pushl %esi
 	pushl %edi
 	pushl %ebp
-	movl  %esp, -4(%esp) # XXX: this is wrong!
-	movl  -8(%esp), %esp # this too!
+	movl  %esp, (%eax)
+	movl  (%ecx), %esp
 	popl  %ebp
 	popl  %edi
 	popl  %esi
-	popl  %edx
-	popl  %ecx
 	popl  %ebx
-	popl  %eax
 	popfl
 	ret
 
-# start_routine in %eax, arg in %ebx
+# start_routine in %esi, arg in %edi
 trampoline:
-	pushl %ebx
-	call  *%eax
+	pushl %edi
+	call  *%esi
 	pushl %eax
 	call ufiber_exit
 
