@@ -27,16 +27,16 @@ static unsigned long shared[BUF_LEN];
 static size_t wpos = 0;
 static size_t rpos = 0;
 
-static inline void yeild_n(unsigned n)
+static inline void yield_n(unsigned n)
 {
 	for (unsigned i = 0; i < n; i++)
-		ufiber_yeild();
+		ufiber_yield();
 }
 
-static inline void yeild_to_n(ufiber_t to, unsigned n)
+static inline void yield_to_n(ufiber_t to, unsigned n)
 {
 	for (unsigned i = 0; i < n; i++)
-		ufiber_yeild_to(to);
+		ufiber_yield_to(to);
 }
 
 static int pc(void *(*producer)(void*), void *(*consumer)(void*))
@@ -55,13 +55,13 @@ static int pc(void *(*producer)(void*), void *(*consumer)(void*))
 	return 0; // TODO: collect and check values
 }
 
-static void *yeild_producer(void *data)
+static void *yield_producer(void *data)
 {
 	if ((unsigned long)data % 2 == 0)
-		ufiber_yeild();
+		ufiber_yield();
 
 	while (next(wpos) == rpos)
-		ufiber_yeild();
+		ufiber_yield();
 
 	shared[wpos] = (unsigned long) data;
 	wpos = next(wpos);
@@ -69,10 +69,10 @@ static void *yeild_producer(void *data)
 	return NULL;
 }
 
-static void *yeild_consumer(void *data)
+static void *yield_consumer(void *data)
 {
 	while (rpos == wpos)
-		ufiber_yeild();
+		ufiber_yield();
 
 	printf("read %lu\n", shared[rpos]);
 	rpos = next(rpos);
@@ -80,9 +80,9 @@ static void *yeild_consumer(void *data)
 	return NULL;
 }
 
-static int yeild_test(void)
+static int yield_test(void)
 {
-	return pc(yeild_producer, yeild_consumer);
+	return pc(yield_producer, yield_consumer);
 }
 
 static ufiber_mutex_t mutex;
@@ -90,11 +90,11 @@ static ufiber_mutex_t mutex;
 static void *mutex_thread(void *data)
 {
 	ufiber_mutex_lock(&mutex);
-	ufiber_yeild();
+	ufiber_yield();
 	printf("read %lu\n", *shared);
-	ufiber_yeild();
+	ufiber_yield();
 	*shared = (unsigned long) data;
-	ufiber_yeild();
+	ufiber_yield();
 	ufiber_mutex_unlock(&mutex);
 	return NULL;
 }
@@ -137,7 +137,7 @@ static int barrier_test(void)
 		ufiber_create(&fids[i], 0, barrier_thread, NULL);
 
 	for (int i = 0; i < NR_FIBERS-1; i++)
-		ufiber_yeild_to(fids[i]);
+		ufiber_yield_to(fids[i]);
 
 	if (*shared != 0)
 		rv = -1;
@@ -162,7 +162,7 @@ static void *read_thread(void *data)
 	unsigned long rv;
 	ufiber_rwlock_rdlock(&rwlock);
 	/* make sure the writer blocks before unlocking */
-	yeild_to_n(writer, NR_FIBERS-1);
+	yield_to_n(writer, NR_FIBERS-1);
 	rv = *shared;
 	ufiber_rwlock_unlock(&rwlock);
 	return (void*) rv;
@@ -171,7 +171,7 @@ static void *read_thread(void *data)
 static void *write_thread(void *data)
 {
 	/* allow all readers to acquire the lock */
-	yeild_n(NR_FIBERS-1);
+	yield_n(NR_FIBERS-1);
 	ufiber_rwlock_wrlock(&rwlock);
 	*shared = (unsigned long) data;
 	ufiber_rwlock_unlock(&rwlock);
@@ -215,12 +215,12 @@ static void *wait_thread(void *data)
 
 static void *wake_thread(void *data)
 {
-	yeild_n(NR_FIBERS-1);
+	yield_n(NR_FIBERS-1);
 
 	*shared = 1;
 	ufiber_cond_signal(&cond);
 
-	yeild_n(NR_FIBERS-1);
+	yield_n(NR_FIBERS-1);
 
 	*shared = 0;
 	ufiber_cond_broadcast(&cond);
@@ -263,7 +263,7 @@ static void run_test(char *name, int (*test)(void))
 int main(void)
 {
 	ufiber_init();
-	run_test("yeild", yeild_test);
+	run_test("yield", yield_test);
 	run_test("mutex", mutex_test);
 	run_test("barrier", barrier_test);
 	run_test("rwlock", rwlock_test);

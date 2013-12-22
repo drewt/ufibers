@@ -225,13 +225,13 @@ int ufiber_join(ufiber_t fiber, void **retval)
 	return 0;
 }
 
-void ufiber_yeild(void)
+void ufiber_yield(void)
 {
 	ready(current);
 	schedule();
 }
 
-int ufiber_yeild_to(ufiber_t fiber)
+int ufiber_yield_to(ufiber_t fiber)
 {
 	if (fiber->state != FS_READY)
 		return -1;
