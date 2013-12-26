@@ -13,9 +13,9 @@ ARFLAGS   = rcs
 LD        = gcc
 LDFLAGS   =
 
-target = ufibers.a
+target = ufiber.a
 
-libobjects = arch.o ufibers.o
+libobjects = arch.o ufiber.o
 objects = $(libobjects) test.o
 clean = $(objects) $(target) test
 

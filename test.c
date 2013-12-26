@@ -16,7 +16,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-#include "ufibers.h"
+#include "ufiber.h"
 
 #define BUF_LEN 8
 #define NR_FIBERS 16

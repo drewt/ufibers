@@ -18,7 +18,7 @@
 
 #include "config.h"
 #include "list.h"
-#include "ufibers.h"
+#include "ufiber.h"
 
 /* architecture */
 #if ARCH_AMD64
