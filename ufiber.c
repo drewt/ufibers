@@ -218,6 +218,9 @@ int ufiber_create(ufiber_t *fiber, unsigned long flags,
 
 int ufiber_join(ufiber_t fiber, void **retval)
 {
+	if (fiber == current)
+		return EDEADLK;
+
 	if (fiber->state == FS_DEAD && retval != NULL)
 		*retval = fiber->rv;
 	else if (fiber->state != FS_DEAD)
