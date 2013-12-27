@@ -15,6 +15,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <errno.h>
 
 #include "config.h"
 #include "list.h"
@@ -233,8 +234,10 @@ void ufiber_yield(void)
 
 int ufiber_yield_to(ufiber_t fiber)
 {
+	if (fiber->state == FS_DEAD)
+		return ESRCH;
 	if (fiber->state != FS_READY)
-		return -1;
+		return EAGAIN;
 
 	ready(current);
 	list_del(&fiber->chain);
