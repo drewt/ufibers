@@ -54,8 +54,7 @@ static struct fiber *root;      /* the top-level fiber */
 
 /* arch.S */
 extern void __ufiber_create(void *cx, void*(*start_routine)(void*), void *arg);
-extern void __context_switch(unsigned long *save_esp, unsigned long *rest_esp);
-extern void trampoline(void);
+extern void __ufiber_switch(unsigned long *save_esp, unsigned long *rest_esp);
 
 /* get a free TCB */
 static struct fiber *alloc_tcb(void)
@@ -107,7 +106,7 @@ static void context_switch(struct fiber *fiber)
 		return;
 
 	current = fiber;
-	__context_switch(save_esp, &fiber->esp);
+	__ufiber_switch(save_esp, &fiber->esp);
 }
 
 /* choose a new fiber to run, and run it */

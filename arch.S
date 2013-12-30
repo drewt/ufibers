@@ -16,8 +16,7 @@
 #include "config.h"
 
 .global __ufiber_create
-.global __context_switch
-.global trampoline
+.global __ufiber_switch
 
 #if ARCH_AMD64
 
@@ -35,7 +34,7 @@ __ufiber_create:
 	movq  %rax, %rsp
 	ret
 
-__context_switch:
+__ufiber_switch:
 	pushfq
 	pushq %rbx
 	pushq %r12
@@ -76,7 +75,7 @@ __ufiber_create:
 	movl  %eax, %esp
 	ret
 
-__context_switch:
+__ufiber_switch:
 	movl  4(%esp), %eax
 	movl  8(%esp), %ecx
 	pushfl
