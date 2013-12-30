@@ -21,19 +21,6 @@
 #include "list.h"
 #include "ufiber.h"
 
-/* architecture */
-#if ARCH_AMD64
-#define CONTEXT_SIZE (8*7) /* 6 registers + eflags */
-#define RA_POS  (7)        /* return address */
-#define SR_POS  (2)        /* %r14 */
-#define ARG_POS (1)        /* %r15 */
-#elif ARCH_IA32
-#define CONTEXT_SIZE (4*5)
-#define RA_POS  (5)
-#define SR_POS  (2)         /* %esi */
-#define ARG_POS (1)         /* %edi */
-#endif
-
 /* must be at least 1 */
 #define FREE_LIST_MAX 1
 
@@ -66,17 +53,27 @@ static struct fiber *current;   /* the running fiber */
 static struct fiber *root;      /* the top-level fiber */
 
 /* arch.S */
+extern void __ufiber_create(void *cx, void*(*start_routine)(void*), void *arg);
 extern void __context_switch(unsigned long *save_esp, unsigned long *rest_esp);
 extern void trampoline(void);
 
 /* get a free TCB */
 static struct fiber *alloc_tcb(void)
 {
+	struct fiber *ret;
+
 	if (!list_empty(&free_list)) {
 		free_count--;
 		return list_remove_head(&free_list, struct fiber, chain);
 	}
-	return malloc(sizeof(struct fiber));
+	
+	if ((ret = malloc(sizeof(struct fiber))) == NULL)
+		return NULL;
+
+	if ((ret->stack = malloc(STACK_SIZE)) == NULL)
+		return NULL;
+
+	return ret;
 }
 
 /* Release a TCB.
@@ -193,20 +190,20 @@ int ufiber_create(ufiber_t *fiber, unsigned long flags,
 		void *(*start_routine)(void*), void *arg)
 {
 	struct fiber *tcb;
-	unsigned long *frame;
+	char *frame;
 
-	tcb = alloc_tcb();
-	tcb->stack = malloc(STACK_SIZE);
+	if ((tcb = alloc_tcb()) == NULL)
+		return ENOMEM;
+
 	tcb->ref = (fiber == NULL || flags & UFIBER_DETACHED) ? 1 : 2;
 	tcb->flags = flags;
 	INIT_LIST_HEAD(&tcb->blocked);
 
-	frame = (unsigned long*) (tcb->stack + STACK_SIZE - CONTEXT_SIZE - 128);
+	frame = tcb->stack + STACK_SIZE - CONTEXT_SIZE - 128;
 	tcb->esp = (unsigned long) frame;
 
-	frame[ARG_POS] = (unsigned long) arg;
-	frame[SR_POS]  = (unsigned long) start_routine;
-	frame[RA_POS]  = (unsigned long) trampoline;
+	__ufiber_create(frame + CONTEXT_SIZE + sizeof(unsigned long),
+			start_routine, arg);
 
 	ready(tcb);
 

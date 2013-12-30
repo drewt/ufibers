@@ -15,10 +15,26 @@
 
 #include "config.h"
 
+.global __ufiber_create
 .global __context_switch
 .global trampoline
 
 #if ARCH_AMD64
+
+# __ufiber_create(cx_addr, start_routine, arg)
+__ufiber_create:
+	movq  %rsp, %rax
+	movq  %rdi, %rsp
+	pushq $trampoline
+	pushfq
+	pushq $0
+	pushq $0
+	pushq $0
+	pushq %rsi
+	pushq %rdx
+	movq  %rax, %rsp
+	ret
+
 __context_switch:
 	pushfq
 	pushq %rbx
@@ -46,6 +62,20 @@ trampoline:
 	call ufiber_exit
 
 #elif ARCH_IA32
+
+__ufiber_create:
+	movl    %esp,  %eax
+	movl  8(%esp), %ecx
+	movl 12(%esp), %edx
+	movl  4(%esp), %esp
+	pushl $trampoline
+	pushfl
+	pushl $0
+	pushl %ecx
+	pushl %edx
+	movl  %eax, %esp
+	ret
+
 __context_switch:
 	movl  4(%esp), %eax
 	movl  8(%esp), %ecx

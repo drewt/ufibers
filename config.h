@@ -20,8 +20,10 @@
 #if __GNUC__
 # if __i386__
 #  define ARCH_IA32 1
+#  define CONTEXT_SIZE (4*5) /* 4 registers + eflags */
 # elif __amd64__
 #  define ARCH_AMD64 1
+#  define CONTEXT_SIZE (8*7) /* 6 registers + eflags */
 # else
 #  error unsupported architecture
 # endif /* __i386__ */
