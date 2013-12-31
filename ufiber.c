@@ -53,8 +53,10 @@ static struct fiber *current;   /* the running fiber */
 static struct fiber *root;      /* the top-level fiber */
 
 /* arch.S */
-extern void __ufiber_create(void *cx, void*(*start_routine)(void*), void *arg);
+extern void __ufiber_create(void *cx, void*(*start_routine)(void*), void *arg,
+		void (*trampoline)(void), void (*ret)(void*));
 extern void __ufiber_switch(unsigned long *save_esp, unsigned long *rest_esp);
+extern void __ufiber_trampoline(void);
 
 /* get a free TCB */
 static struct fiber *alloc_tcb(void)
@@ -202,7 +204,7 @@ int ufiber_create(ufiber_t *fiber, unsigned long flags,
 	tcb->esp = (unsigned long) frame;
 
 	__ufiber_create(frame + CONTEXT_SIZE + sizeof(unsigned long),
-			start_routine, arg);
+			start_routine, arg, __ufiber_trampoline, ufiber_exit);
 
 	ready(tcb);
 

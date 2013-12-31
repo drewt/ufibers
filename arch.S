@@ -17,6 +17,7 @@
 
 .global __ufiber_create
 .global __ufiber_switch
+.global __ufiber_trampoline
 
 #if ARCH_AMD64
 
@@ -24,11 +25,11 @@
 __ufiber_create:
 	movq  %rsp, %rax
 	movq  %rdi, %rsp
-	pushq $trampoline
+	pushq %rcx
 	pushfq
 	pushq $0
 	pushq $0
-	pushq $0
+	pushq %r8
 	pushq %rsi
 	pushq %rdx
 	movq  %rax, %rsp
@@ -53,26 +54,32 @@ __ufiber_switch:
 	popfq
 	ret
 
-# start_routine in %r14, arg in %r15
-trampoline:
+# ufiber_exit in %r13, start_routine in %r14, arg in %r15
+__ufiber_trampoline:
 	movq %r15, %rdi
 	call *%r14
 	movq %rax, %rdi
-	call ufiber_exit
+	call *%r13
 
 #elif ARCH_IA32
 
 __ufiber_create:
+	pushl %ebx
+	pushl %edi
 	movl    %esp,  %eax
-	movl  8(%esp), %ecx
-	movl 12(%esp), %edx
-	movl  4(%esp), %esp
-	pushl $trampoline
+	movl 16(%esp), %ecx
+	movl 20(%esp), %edx
+	movl 24(%esp), %ebx
+	movl 28(%esp), %edi
+	movl 12(%esp), %esp
+	pushl %ebx
 	pushfl
-	pushl $0
+	pushl %edi
 	pushl %ecx
 	pushl %edx
 	movl  %eax, %esp
+	popl  %edi
+	popl  %ebx
 	ret
 
 __ufiber_switch:
@@ -92,11 +99,11 @@ __ufiber_switch:
 	popfl
 	ret
 
-# start_routine in %esi, arg in %edi
-trampoline:
+# ufiber_exit in %ebx, start_routine in %esi, arg in %edi
+__ufiber_trampoline:
 	pushl %edi
 	call  *%esi
 	pushl %eax
-	call ufiber_exit
+	call  *%ebx
 
 #endif
