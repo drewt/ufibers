@@ -1,5 +1,5 @@
-ufibers - userspace fibers/coroutines
-=====================================
+ufibers - user space fibers
+===========================
 
 Copyright © 2013 Drew Thoreson
 
@@ -17,11 +17,23 @@ Building
 --------
 
 You'll need a recent version of gcc.  Currently ufibers supports x86 and
-x86\_64.  To build the library:
+x86\_64.
 
-    $ make
+To build the library as an archive:
+
+    $ make ufiber.a
 
 Then link the generated archive (ufibers.a) with your program.
+
+To build the library as a shared object:
+
+    $ make so
+
+To install the shared library:
+
+    $ make install
+
+Then link your program with -lufiber.
 
 
 Git Repository

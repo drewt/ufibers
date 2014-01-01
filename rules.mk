@@ -40,14 +40,14 @@ distclean: clean
 
 # CC for program object files (.o)
 quiet_cmd_cc    = CC      $@
-      cmd_cc    = $(CC) -c $(CPPFLAGS) $(ALLCFLAGS) -o $@ $<
+      cmd_cc    = $(CC) -c $(CPPFLAGS) $(ALLCFLAGS) $(1) -o $@ $<
 
 # create archive
 quiet_cmd_ar    = AR      $@
       cmd_ar    = $(AR) $(ARFLAGS) $@ $^
 
 quiet_cmd_ccas  = AS      $@
-      cmd_ccas  = $(CC) -c $(CPPFLAGS) -o $@ $<
+      cmd_ccas  = $(CC) -c $(CPPFLAGS) $(1) -o $@ $<
 
 quiet_cmd_as    = AS      $@
       cmd_as    = $(AS) $(ASFLAGS) -o $@ $<
