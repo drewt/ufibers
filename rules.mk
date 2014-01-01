@@ -64,6 +64,10 @@ quiet_cmd_dep   = DEP     $@
 quiet_cmd_smake = MAKE    $@
       cmd_smake = cd $@ && $(MAKE)
 
+# generate man page from .txt file
+quiet_cmd_ttman = MAN     $@
+      cmd_ttman = doc/ttman $< $@
+
 # generate man page as plain text file
 quiet_cmd_groff = GROFF   $@
       cmd_groff = groff -man -Tascii $< | col -bx > $@

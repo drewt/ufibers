@@ -1,0 +1,63 @@
+.\" Copyright (c) 2013 Drew Thoreson
+.\"
+.\" %%%LICENSE_START(VERBATIM)
+.\" Permission is granted to make and distribute verbatim copies of this
+.\" manual provided the copyright notice and this permission notice are
+.\" preserved on all copies.
+.\"
+.\" Permission is granted to copy and distribute modified versions of this
+.\" manual under the conditions for verbatim copying, provided that the
+.\" entire resulting derived work is distributed under the terms of a
+.\" permission notice identical to this one.
+.\"
+.\" This manual page may be incorrect or out-of-date.  The author(s) assume
+.\" no responsibility for errors or omissions, or for damages resulting from
+.\" the use of the information contained herein.  The author(s) may not
+.\" have taken the same level of care in the production of this manual,
+.\" which is licensed free of charge, as they might when working
+.\" professionally.
+.\"
+.\" Formatted or processed versions of this manual, if unaccompanied by
+.\" the source, must acknowledge the copyright and authors of this work.
+.\" %%%LICENSE_END
+.\"
+.TH UFIBER_YIELD 3 27/12/2013 Linux "ufibers Manual"
+.nh
+.ad l
+.SH NAME
+ufiber_yield, ufiber_yield_to \- yield control to another fiber
+.SH SYNOPSIS
+\fB#include <ufiber.h>\fR
+
+\fBvoid ufiber_yield(void);\fR
+
+\fBint ufiber_yield_to(ufiber_t \fR\fIfiber\fR\fB);\fR
+
+Link with \fI\-lufiber\fR.
+.SH DESCRIPTION
+The \fBufiber_yield\fR() function invokes the \fBufibers\fR scheduler,
+yeilding control to another fiber.  If no other fibers are able to run (e.g.,
+if all other fibers have terminated) then this function returns immediately.
+
+The \fBufiber_yield_to\fR() function yields control to the fiber specified by
+\fIfiber\fR.  If the target fiber is not able to run, \fBufiber_yield_to\fR()
+returns immediately.
+.SH RETURN VALUE
+The \fBufiber_yield\fR() function does not return a value.
+
+On success, \fBufiber_yield_to\fR() returns 0; on error, it returns an error
+number.
+.SH ERRORS
+[EAGAIN]
+.RS
+The target fiber was not ready to run (e.g., it was blocked on a call to
+\fBufiber_join\fR()).
+.RE
+[ESRCH]
+.RS
+No fiber exists with the given ID, or the target fiber has terminated.
+.RE
+.SH SEE ALSO
+\fBufiber_join\fR(3)
+.SH COPYRIGHT
+Copyright (c) 2013 Drew Thoreson.

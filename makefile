@@ -9,8 +9,7 @@ realname = $(soname).$(libminor)
 prefix  = /usr/local
 bindir  = $(prefix)/bin
 libdir  = $(prefix)/lib
-man1dir = $(prefix)/share/man/man1
-man1ext = .1
+mandir = $(prefix)/share/man
 
 CC        = gcc
 CFLAGS    = -Wall -Wextra -Wno-unused-parameter -g
@@ -20,7 +19,10 @@ AR        = ar
 ARFLAGS   = rcs
 LD        = $(CC)
 LDFLAGS   =
-INSTALL   = install
+INSTALL   = @scripts/install
+
+man3 = doc/ufiber_create.3 doc/ufiber_exit.3 doc/ufiber_join.3 \
+       doc/ufiber_ref.3 doc/ufiber_self.3 doc/ufiber_yield.3
 
 libobjects = arch.o ufiber.o
 soobjects = $(addprefix so.,$(libobjects))
@@ -33,8 +35,11 @@ so: $(realname)
 
 include rules.mk
 
-cmd_install = @$(if $(quiet),echo '  INSTALL $(2)' &&) $(INSTALL) $(3) $(1) $(2)
-cmd_ldconf  = @$(if $(quiet),echo '  LDCONF  $(2)' &&) ln -s $(1) $(2)
+quiet_cmd_ldconf = LDCONF  $(libdir)
+      cmd_ldconf = ldconfig -n $(libdir)
+
+quiet_cmd_libln = LN      $(libdir)/$(libname)
+      cmd_libln = ln -f -s $(realname) $(libdir)/$(libname)
 
 quiet_cmd_sold = LD      $@
       cmd_sold = $(LD) $(LDFLAGS) -shared -Wl,-soname,$(1) -o $@ $^
@@ -55,9 +60,10 @@ test: $(libobjects) test.o
 	$(call cmd,ld)
 
 install: $(realname)
-	$(call cmd_install,$(realname),$(libdir)/$(realname))
-	$(call cmd_ldconf,$(realname),$(libdir)/$(soname))
-	$(call cmd_ldconf,$(realname),$(libdir)/$(libname))
+	$(INSTALL) -m755 $(libdir) $(realname)
+	$(call cmd,ldconf)
+	$(call cmd,libln)
+	$(INSTALL) -m644 $(mandir)/man3 $(man3)
 
 uninstall:
 	rm -f $(libdir)/$(realname)

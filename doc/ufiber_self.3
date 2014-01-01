@@ -1,0 +1,53 @@
+.\" Copyright (c) 2013 Drew Thoreson
+.\"
+.\" Copyright (c) 2008 Linux Foundation, written by Michael Kerrisk
+.\"     <mtk.manpages@gmail.com>
+.\"
+.\" %%%LICENSE_START(VERBATIM)
+.\" Permission is granted to make and distribute verbatim copies of this
+.\" manual provided the copyright notice and this permission notice are
+.\" preserved on all copies.
+.\"
+.\" Permission is granted to copy and distribute modified versions of this
+.\" manual under the conditions for verbatim copying, provided that the
+.\" entire resulting derived work is distributed under the terms of a
+.\" permission notice identical to this one.
+.\"
+.\" This manual page may be incorrect or out-of-date.  The author(s) assume
+.\" no responsibility for errors or omissions, or for damages resulting from
+.\" the use of the information contained herein.  The author(s) may not
+.\" have taken the same level of care in the production of this manual,
+.\" which is licensed free of charge, as they might when working
+.\" professionally.
+.\"
+.\" Formatted or processed versions of this manual, if unaccompanied by
+.\" the source, must acknowledge the copyright and authors of this work.
+.\" %%%LICENSE_END
+.\"
+.TH UFIBER_SELF 3 27/12/2013 Linux "ufibers Manual"
+.nh
+.ad l
+.SH NAME
+ufiber_self \- obtain ID of the calling fiber
+.SH SYNOPSIS
+\fB#include <ufiber.h>\fR
+
+\fBufiber_t ufiber_self(void);\fR
+
+Link with \fI\-lufiber\fR.
+.SH DESCRIPTION
+The \fBufiber_self\fR() function returns the ID of the calling fiber.  This is
+the same value that is returned in \fI*fiber\fR in the \fBufiber_create\fR(3)
+call that created this fiber.
+.SH RETURN VALUE
+This function always succeeds, returning the calling thread's ID.
+.SH ERRORS
+This function always succeeds.
+.SH SEE ALSO
+\fBufiber_create\fR(3)
+.SH COPYRIGHT
+Copyright (c) 2013 Drew Thoreson.
+
+This page is derived from the \fBpthread_self\fR() man page from the Linux
+\fIman\-pages\fR project, Copyright (c) 2008 Linux Foundation, written by
+Michael Kerrisk.
