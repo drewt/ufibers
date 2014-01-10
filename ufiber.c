@@ -45,12 +45,14 @@ struct fiber {
 	void          **ptr;             /* pointer for join() */
 };
 
-static LIST_HEAD(ready_queue);  /* queue of ready fibers */
-static LIST_HEAD(free_list);    /* list of free TCBs */
-static unsigned free_count = 0; /* number of free TCBs */
+static LIST_HEAD(ready_queue);   /* queue of ready fibers */
+static LIST_HEAD(free_list);     /* list of free TCBs */
+static unsigned free_count = 0;  /* number of free TCBs */
+static unsigned fiber_count = 1; /* number of active (non-dead) fibers */
 
-static struct fiber *current;   /* the running fiber */
-static struct fiber *root;      /* the top-level fiber */
+static struct fiber *current;      /* the running fiber */
+static struct fiber *root;         /* the top-level fiber */
+static struct fiber *last_blocked; /* last fiber to block */
 
 /* arch.S */
 extern void __ufiber_create(void *cx, void*(*start_routine)(void*), void *arg,
@@ -111,31 +113,6 @@ static void context_switch(struct fiber *fiber)
 	__ufiber_switch(save_esp, &fiber->esp);
 }
 
-/* choose a new fiber to run, and run it */
-static void schedule(void)
-{
-	struct fiber *tcb;
-
-	if (list_empty(&ready_queue)) {
-		fprintf(stderr, "error: deadlock detected\n");
-		exit(EXIT_FAILURE);
-	}
-
-	tcb = list_remove_head(&ready_queue, struct fiber, chain);
-
-	context_switch(tcb);
-}
-
-/* block 'fiber' on a given wait queue */
-static inline void block(struct fiber *fiber, struct list_head *list,
-		void **rv)
-{
-	fiber->ptr = rv;
-	fiber->state = FS_BLOCKED;
-	list_add_tail(&fiber->chain, list);
-	schedule();
-}
-
 /* add 'fiber' to the ready queue */
 static inline void ready(struct fiber *fiber)
 {
@@ -165,6 +142,32 @@ static inline void wake_all(struct list_head *list, void *val)
 
 	list_for_each_entry_safe(pos, n, list, chain)
 		wake(pos, val);
+}
+
+/* choose a new fiber to run, and run it */
+static void schedule(void)
+{
+	struct fiber *tcb;
+
+	if (list_empty(&ready_queue)) {
+		wake(last_blocked, (void*) EDEADLK);
+	}
+
+	tcb = list_remove_head(&ready_queue, struct fiber, chain);
+
+	context_switch(tcb);
+}
+
+/* block 'fiber' on a given wait queue */
+static inline void block(struct fiber *fiber, struct list_head *list,
+		void **rv)
+{
+	fiber->ptr = rv;
+	fiber->state = FS_BLOCKED;
+	list_add_tail(&fiber->chain, list);
+
+	last_blocked = fiber;
+	schedule();
 }
 
 /* API */
@@ -211,6 +214,7 @@ int ufiber_create(ufiber_t *fiber, unsigned long flags,
 	if (fiber != NULL)
 		*fiber = tcb;
 
+	fiber_count++;
 	return 0;
 }
 
@@ -248,7 +252,7 @@ int ufiber_yield_to(ufiber_t fiber)
 
 void ufiber_exit(void *retval)
 {
-	if (current == root)
+	if (--fiber_count == 0)
 		exit(((long)retval));
 
 	current->rv = retval;

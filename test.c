@@ -251,6 +251,45 @@ static int cond_test(void)
 	return 0;
 }
 
+static void *hold_fib(void *data)
+{
+	ufiber_mutex_init(&mutex);
+	ufiber_mutex_lock(&mutex);
+
+	ufiber_yield();
+
+	return NULL;
+}
+
+static int deadlock_test(void)
+{
+	ufiber_t hold;
+	int rc = 0;
+
+	ufiber_create(&hold, 0, hold_fib, (void*)ufiber_self());
+	ufiber_yield();
+
+	if (ufiber_mutex_lock(&mutex) != EDEADLK)
+		rc = 1;
+
+	ufiber_join(hold, NULL);
+
+	return rc;
+}
+
+static void *new_main(void *data)
+{
+	printf("STATUS: 0 SUCCESS\n");
+	return NULL;
+}
+
+static int exit_test(void)
+{
+	ufiber_create(NULL, 0, new_main, NULL);
+	ufiber_exit(NULL);
+	return 1;
+}
+
 static void run_test(char *name, int (*test)(void))
 {
 	int status;
@@ -268,4 +307,7 @@ int main(void)
 	run_test("barrier", barrier_test);
 	run_test("rwlock", rwlock_test);
 	run_test("cond", cond_test);
+	run_test("deadlock", deadlock_test);
+	run_test("exit", exit_test);
+	printf("ERROR: unreachable code!\n");
 }
