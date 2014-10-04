@@ -26,7 +26,7 @@ man3 = doc/ufiber_create.3 doc/ufiber_exit.3 doc/ufiber_join.3 \
 
 libobjects = arch.o ufiber.o
 soobjects = $(addprefix so.,$(libobjects))
-objects = $(libobjects) $(soobjects) test.o
+objects = $(libobjects) $(soobjects) check.o
 clean = $(objects) $(realname) ufiber.a test
 
 all: ufiber.a
@@ -56,8 +56,8 @@ $(realname): $(soobjects)
 ufiber.a: $(libobjects)
 	$(call cmd,ar)
 
-test: $(libobjects) test.o
-	$(call cmd,ld)
+check: check.o ufiber.a
+	$(call cmd,ld,-lcheck)
 
 install: $(realname)
 	$(INSTALL) -m755 $(libdir) $(realname)
