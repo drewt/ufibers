@@ -12,9 +12,9 @@ libdir     = $(prefix)/lib
 mandir     = $(prefix)/share/man
 includedir = $(prefix)/include
 
-CC        = gcc
-CFLAGS    = -Wall -Wextra -Wno-unused-parameter -g
-ALLCFLAGS = $(CFLAGS) -std=gnu11
+CC        = gcc -std=c99
+CFLAGS    = -Wall -Wextra -Wno-unused-parameter -pedantic -g
+ALLCFLAGS = $(CFLAGS)
 AS        = as
 AR        = ar
 ARFLAGS   = rcs

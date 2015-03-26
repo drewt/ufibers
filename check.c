@@ -80,7 +80,7 @@ static void *uf_join(void *data)
 	for (int i = 0; i < 3; i++)
 		ufiber_yield();
 	counter = 1;
-	return uf_join;
+	return &counter;
 }
 
 START_TEST(test_ufiber_join)
@@ -92,7 +92,7 @@ START_TEST(test_ufiber_join)
 	ck_ufiber_create(&fid, 0, uf_join, NULL);
 	ck_ufiber_join(fid, &retval);
 	ck_assert_int_eq(counter, 1);
-	ck_assert_ptr_eq(retval, uf_join);
+	ck_assert_ptr_eq(retval, &counter);
 }
 END_TEST
 
