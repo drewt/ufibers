@@ -70,10 +70,10 @@ static struct ufiber *root;         // the top-level fiber
 static struct ufiber *last_blocked; // last fiber to block
 
 /* arch.S */
-extern void __ufiber_create(void *cx, void*(*start_routine)(void*), void *arg,
+extern void _ufiber_create(void *cx, void*(*start_routine)(void*), void *arg,
 		void (*trampoline)(void), void (*ret)(void*));
-extern void __ufiber_switch(unsigned long *save_esp, unsigned long *rest_esp);
-extern void __ufiber_trampoline(void);
+extern void _ufiber_switch(unsigned long *save_esp, unsigned long *rest_esp);
+extern void _ufiber_trampoline(void);
 
 /* get a free TCB */
 static struct ufiber *alloc_tcb(void)
@@ -127,7 +127,7 @@ static void context_switch(struct ufiber *fiber)
 		return;
 
 	current = fiber;
-	__ufiber_switch(save_esp, &fiber->esp);
+	_ufiber_switch(save_esp, &fiber->esp);
 }
 
 /* add 'fiber' to the ready queue */
@@ -224,8 +224,8 @@ int ufiber_create(ufiber_t *fiber, unsigned long flags,
 	frame = tcb->stack + STACK_SIZE - CONTEXT_SIZE - 128;
 	tcb->esp = (unsigned long) frame;
 
-	__ufiber_create(frame + CONTEXT_SIZE + sizeof(unsigned long),
-			start_routine, arg, __ufiber_trampoline, ufiber_exit);
+	_ufiber_create(frame + CONTEXT_SIZE + sizeof(unsigned long),
+			start_routine, arg, _ufiber_trampoline, ufiber_exit);
 
 	ready(tcb);
 
