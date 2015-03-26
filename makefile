@@ -6,10 +6,11 @@ libname  = libufiber.so
 soname   = $(libname).$(libmajor)
 realname = $(soname).$(libminor)
 
-prefix  = /usr/local
-bindir  = $(prefix)/bin
-libdir  = $(prefix)/lib
-mandir = $(prefix)/share/man
+prefix     = /usr/local
+bindir     = $(prefix)/bin
+libdir     = $(prefix)/lib
+mandir     = $(prefix)/share/man
+includedir = $(prefix)/include
 
 CC        = gcc
 CFLAGS    = -Wall -Wextra -Wno-unused-parameter -g
@@ -63,6 +64,7 @@ install: $(realname)
 	$(INSTALL) -m755 $(libdir) $(realname)
 	$(call cmd,ldconf)
 	$(call cmd,libln)
+	$(INSTALL) -m644 $(includedir) ufiber.h
 	$(INSTALL) -m644 $(mandir)/man3 $(man3)
 
 uninstall:
