@@ -18,6 +18,7 @@
 
 #include "config.h"
 #include "ufiber.h"
+#include "queue.h"
 
 /* must be at least 1 */
 #define FREE_LIST_MAX 1
@@ -276,6 +277,13 @@ void ufiber_unref(ufiber_t fiber)
 		free_tcb(fiber);
 }
 
+int ufiber_mutex_init(ufiber_mutex_t *mutex)
+{
+	UFIBER_CIRCLEQ_INIT(&mutex->blocked);
+	mutex->count = 0;
+	return 0;
+}
+
 int ufiber_mutex_destroy(ufiber_mutex_t *mutex)
 {
 	wake_all(&mutex->blocked, (void*) -1L);
@@ -302,6 +310,20 @@ int ufiber_mutex_unlock(ufiber_mutex_t *mutex)
 		mutex->count = 0;
 	else
 		wake_one(&mutex->blocked, (void*) 0L);
+	return 0;
+}
+
+int ufiber_mutex_trylock(ufiber_mutex_t *mutex)
+{
+	if (mutex->count)
+		return EBUSY;
+	return ufiber_mutex_lock(mutex);
+}
+
+int ufiber_barrier_init(ufiber_barrier_t *barrier, unsigned count)
+{
+	UFIBER_CIRCLEQ_INIT(&barrier->blocked);
+	barrier->count = count;
 	return 0;
 }
 
@@ -332,6 +354,14 @@ int ufiber_barrier_wait(ufiber_barrier_t *barrier)
  * When unlocking a write-locked rwlock, queued writers are unblocked first.
  * Only when there are no writers left are any queued readers unblocked.
  */
+
+int ufiber_rwlock_init(ufiber_rwlock_t *lock)
+{
+	UFIBER_CIRCLEQ_INIT(&lock->rdblocked);
+	UFIBER_CIRCLEQ_INIT(&lock->wrblocked);
+	lock->reading = 0;
+	return 0;
+}
 
 int ufiber_rwlock_destroy(ufiber_rwlock_t *lock)
 {
@@ -368,6 +398,20 @@ int ufiber_rwlock_wrlock(ufiber_rwlock_t *lock)
 	return 0;
 }
 
+int ufiber_rwlock_tryrdlock(ufiber_rwlock_t *lock)
+{
+	if (lock->reading == -1 || !UFIBER_CIRCLEQ_EMPTY(&lock->wrblocked))
+		return EBUSY;
+	return ufiber_rwlock_rdlock(lock);
+}
+
+int ufiber_rwlock_trywrlock(ufiber_rwlock_t *lock)
+{
+	if (lock->reading > 0)
+		return EBUSY;
+	return ufiber_rwlock_wrlock(lock);
+}
+
 int ufiber_rwlock_unlock(ufiber_rwlock_t *lock)
 {
 	struct ufiber *next;
@@ -384,6 +428,12 @@ int ufiber_rwlock_unlock(ufiber_rwlock_t *lock)
 	} else if (--lock->reading == 0) {
 		wake_one(&lock->wrblocked, (void*) 0L);
 	}
+	return 0;
+}
+
+int ufiber_cond_init(ufiber_cond_t *cond)
+{
+	UFIBER_CIRCLEQ_INIT(cond);
 	return 0;
 }
 

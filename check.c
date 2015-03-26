@@ -14,6 +14,7 @@
  */
 
 #include <stdlib.h>
+#include <errno.h>
 #include <check.h>
 #include "ufiber.h"
 
