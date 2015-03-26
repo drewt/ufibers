@@ -17,7 +17,7 @@
 #include <check.h>
 #include "ufiber.h"
 
-#define NR_FIBERS 3
+#define NR_FIBERS 30
 
 static int counter;
 static ufiber_t other;
@@ -188,11 +188,12 @@ START_TEST(test_ufiber_mutex)
 		uid[i] = i;
 		ck_ufiber_create(&fid[i], 0, uf_mutex, &uid[i]);
 	}
-	for (int i = 0; i < NR_FIBERS; i++)
-		ufiber_join(fid[i], NULL);
+	for (int i = 0; i < NR_FIBERS; i++) {
+		ck_assert_int_eq(ufiber_join(fid[i], NULL), 0);
+	}
 
-	ck_assert(!ufiber_mutex_trylock(&mutex));
-	ck_assert(ufiber_mutex_trylock(&mutex) == EBUSY);
+	ck_assert_int_eq(ufiber_mutex_trylock(&mutex), 0);
+	ck_assert_int_eq(ufiber_mutex_trylock(&mutex), EBUSY);
 }
 END_TEST
 

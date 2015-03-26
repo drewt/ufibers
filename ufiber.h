@@ -17,29 +17,31 @@
 #define _FIBER_H_
 
 #include <errno.h>
-
-#include "list.h"
+#include "queue.h"
 
 #define UFIBER_DETACHED 1
-
 #define UFIBER_BARRIER_SERIAL_FIBER (-1)
 
+struct ufiber;
+
+UFIBER_CIRCLEQ_HEAD(ufiber_waitlist, ufiber);
+
 struct ufiber_blocklist {
-	struct list_head blocked;
+	struct ufiber_waitlist blocked;
 	unsigned count;
 };
 
 struct ufiber_rwlock {
-	struct list_head rdblocked;
-	struct list_head wrblocked;
+	struct ufiber_waitlist rdblocked;
+	struct ufiber_waitlist wrblocked;
 	long reading;
 };
 
-typedef struct fiber* ufiber_t;
+typedef struct ufiber* ufiber_t;
 typedef struct ufiber_blocklist ufiber_mutex_t;
 typedef struct ufiber_blocklist ufiber_barrier_t;
 typedef struct ufiber_rwlock ufiber_rwlock_t;
-typedef struct list_head ufiber_cond_t;
+typedef struct ufiber_waitlist ufiber_cond_t;
 
 int ufiber_init(void);
 
@@ -62,7 +64,7 @@ void ufiber_unref(ufiber_t fiber);
 
 static inline int ufiber_mutex_init(ufiber_mutex_t *mutex)
 {
-	INIT_LIST_HEAD(&mutex->blocked);
+	UFIBER_CIRCLEQ_INIT(&mutex->blocked);
 	mutex->count = 0;
 	return 0;
 }
@@ -83,7 +85,7 @@ static inline int ufiber_mutex_trylock(ufiber_mutex_t *mutex)
 static inline int ufiber_barrier_init(ufiber_barrier_t *barrier,
 		unsigned count)
 {
-	INIT_LIST_HEAD(&barrier->blocked);
+	UFIBER_CIRCLEQ_INIT(&barrier->blocked);
 	barrier->count = count;
 	return 0;
 }
@@ -94,8 +96,8 @@ int ufiber_barrier_wait(ufiber_barrier_t *barrier);
 
 static inline int ufiber_rwlock_init(ufiber_rwlock_t *lock)
 {
-	INIT_LIST_HEAD(&lock->rdblocked);
-	INIT_LIST_HEAD(&lock->wrblocked);
+	UFIBER_CIRCLEQ_INIT(&lock->rdblocked);
+	UFIBER_CIRCLEQ_INIT(&lock->wrblocked);
 	lock->reading = 0;
 	return 0;
 }
@@ -108,7 +110,7 @@ int ufiber_rwlock_wrlock(ufiber_rwlock_t *lock);
 
 static inline int ufiber_rwlock_tryrdlock(ufiber_rwlock_t *lock)
 {
-	if (lock->reading == -1 || !list_empty(&lock->wrblocked))
+	if (lock->reading == -1 || !UFIBER_CIRCLEQ_EMPTY(&lock->wrblocked))
 		return EBUSY;
 	return ufiber_rwlock_rdlock(lock);
 }
@@ -124,7 +126,7 @@ int ufiber_rwlock_unlock(ufiber_rwlock_t *lock);
 
 static inline int ufiber_cond_init(ufiber_cond_t *cond)
 {
-	INIT_LIST_HEAD(cond);
+	UFIBER_CIRCLEQ_INIT(cond);
 	return 0;
 }
 
