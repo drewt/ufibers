@@ -22,8 +22,8 @@ work on any operating system, or even on bare metal.
 Since ufibers is written partially in assembly language, it is not portable
 between architectures.  However, the asembly language routines are small and
 self-contained, so it should be fairly easy to port for someone with working
-knowledge of the target architecture.  Currently ufibers supports the x86 and
-x86\_64 architectures.
+knowledge of the target architecture.  Currently ufibers supports the x86,
+x86\_64 and ARM architectures.
 
 
 Building

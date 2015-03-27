@@ -36,7 +36,7 @@
 
 #if ARCH_AMD64
 
-# _ufiber_create(cx_addr, start_routine, arg)
+# _ufiber_create(cx_addr, start_routine, arg, trampoline, exit)
 _ufiber_create:
 	movq  %rsp, %rax
 	movq  %rdi, %rsp
@@ -50,6 +50,7 @@ _ufiber_create:
 	movq  %rax, %rsp
 	ret
 
+# _ufiber_switch(unsigned long *save_sp, unsigned long *rest_sp)
 _ufiber_switch:
 	pushfq
 	pushq %rbx
@@ -78,6 +79,7 @@ _ufiber_trampoline:
 
 #elif ARCH_IA32
 
+# _ufiber_create(cx_addr, start_routine, arg, trampoline, exit)
 _ufiber_create:
 	pushl %ebx
 	pushl %edi
@@ -97,6 +99,7 @@ _ufiber_create:
 	popl  %ebx
 	ret
 
+# _ufiber_switch(unsigned long *save_sp, unsigned long *rest_sp)
 _ufiber_switch:
 	movl  4(%esp), %eax
 	movl  8(%esp), %ecx
@@ -120,5 +123,67 @@ _ufiber_trampoline:
 	call  *%esi
 	pushl %eax
 	call  *%ebx
+
+#elif ARCH_ARM
+
+@ _ufiber_create(cx_addr, start_routine, arg, trampoline, exit)
+_ufiber_create:
+	ldr  r12, [sp]     @ pull arg 5 (exit) off the stack
+	push {r4}
+	mov  r4, sp        @ save stack pointer in r4
+	mov  sp, r0        @ move the stack pointer to cx_addr
+	sub  sp, sp, #4    @ fix off-by-one in cx_addr
+	@ TODO: use block transfer somehow
+	push {r1}          @ r4 := start_routine
+	push {r2}          @ r5 := arg
+	push {r12}         @ r6 := exit
+	push {r7}          @ r7
+	push {r8}          @ r8
+	push {r9}          @ r9
+	push {r10}         @ r10
+	push {r11}         @ r11
+	mrs  r0, cpsr
+	push {r0}          @ cpsr
+	push {r3}          @ lr := trampoline
+	mov  r0, sp
+	mov  sp, r4        @ restore stack pointer
+	pop  {r4}
+	bx   lr
+
+@ _ufiber_switch(unsigned long *save_sp, unsigned long *rest_sp)
+_ufiber_switch:
+	mrs  r12, cpsr
+	@ TODO: block transfer
+	push {r4}
+	push {r5}
+	push {r6}
+	push {r7}
+	push {r8}
+	push {r9}
+	push {r10}
+	push {r11}
+	push {r12}
+	push {lr}
+	str  sp, [r0]      @ save stack pointer in save_sp
+	ldr  sp, [r1]      @ restore stack pointer from rest_sp
+	@ TODO: block transfer
+	pop  {lr}
+	pop  {r12}
+	pop  {r11}
+	pop  {r10}
+	pop  {r9}
+	pop  {r8}
+	pop  {r7}
+	pop  {r6}
+	pop  {r5}
+	pop  {r4}
+	msr  cpsr, r12
+	bx   lr
+
+@ ufiber_exit in r6, start_routine in r4, arg in r5
+_ufiber_trampoline:
+	mov r0, r5
+	blx r4
+	bx  r6
 
 #endif

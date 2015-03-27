@@ -39,6 +39,9 @@
 # elif __amd64__
 #  define ARCH_AMD64 1
 #  define CONTEXT_SIZE (8*7) /* 6 registers + eflags */
+# elif __arm__
+#  define ARCH_ARM 1
+#  define CONTEXT_SIZE (4*10) /* {r4-r11, lr, cpsr} */
 # else
 #  error unsupported architecture
 # endif /* __i386__ */
