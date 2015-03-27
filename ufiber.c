@@ -176,15 +176,14 @@ static void schedule(void)
 }
 
 /* block 'fiber' on a given wait queue */
-static inline void block(struct ufiber *fiber, struct ufiber_waitlist *list,
-		void **rv)
+static void block(struct ufiber_waitlist *list, void **rv)
 {
-	fiber->ptr = rv;
-	fiber->state = FS_BLOCKED;
-	fiber->blocked_on = list;
-	UFIBER_CIRCLEQ_INSERT_TAIL(list, fiber, chain);
+	current->ptr = rv;
+	current->state = FS_BLOCKED;
+	current->blocked_on = list;
+	UFIBER_CIRCLEQ_INSERT_TAIL(list, current, chain);
 
-	last_blocked = fiber;
+	last_blocked = current;
 	schedule();
 }
 
@@ -244,7 +243,7 @@ int ufiber_join(ufiber_t fiber, void **retval)
 	if (fiber->state == FS_DEAD && retval != NULL)
 		*retval = fiber->rv;
 	else if (fiber->state != FS_DEAD)
-		block(current, &fiber->blocked, retval);
+		block(&fiber->blocked, retval);
 	ufiber_unref(fiber);
 	return 0;
 }
@@ -310,7 +309,7 @@ int ufiber_mutex_lock(ufiber_mutex_t *mutex)
 	unsigned long error = 0;
 
 	if (mutex->count)
-		block(current, &mutex->blocked, (void**) &error);
+		block(&mutex->blocked, (void**) &error);
 
 	if (error)
 		return error;
@@ -356,7 +355,7 @@ int ufiber_barrier_wait(ufiber_barrier_t *barrier)
 		wake_all(&barrier->blocked, (void*) 0L);
 		rv = UFIBER_BARRIER_SERIAL_FIBER;
 	} else {
-		block(current, &barrier->blocked, (void**) &rv);
+		block(&barrier->blocked, (void**) &rv);
 	}
 
 	return rv;
@@ -390,7 +389,7 @@ int ufiber_rwlock_rdlock(ufiber_rwlock_t *lock)
 	unsigned long error = 0;
 
 	if (lock->reading == -1 || !UFIBER_CIRCLEQ_EMPTY(&lock->wrblocked))
-		block(current, &lock->rdblocked, (void**) &error);
+		block(&lock->rdblocked, (void**) &error);
 
 	if (error)
 		return error;
@@ -404,7 +403,7 @@ int ufiber_rwlock_wrlock(ufiber_rwlock_t *lock)
 	unsigned long error = 0;
 
 	if (lock->reading > 0)
-		block(current, &lock->wrblocked, (void*) &error);
+		block(&lock->wrblocked, (void*) &error);
 
 	if (error)
 		return error;
@@ -464,7 +463,7 @@ int ufiber_cond_wait(ufiber_cond_t *cond, ufiber_mutex_t *mutex)
 	if (mutex != NULL && (error = ufiber_mutex_unlock(mutex) != 0))
 		return error;
 
-	block(current, cond, (void*) &error);
+	block(cond, (void*) &error);
 	if (error)
 		return error;
 
