@@ -28,7 +28,7 @@ man3 = doc/ufiber_create.3 doc/ufiber_exit.3 doc/ufiber_join.3 \
 libobjects = arch.o ufiber.o
 soobjects = $(addprefix so.,$(libobjects))
 objects = $(libobjects) $(soobjects) check.o
-clean = $(objects) $(realname) ufiber.a test
+clean = $(objects) $(realname) ufiber.a
 
 all: ufiber.a
 

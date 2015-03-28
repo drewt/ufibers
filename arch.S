@@ -36,7 +36,7 @@
 
 #if ARCH_AMD64
 
-# _ufiber_create(cx_addr, start_routine, arg)
+# _ufiber_create(cx_addr, start_routine, arg, trampoline, exit)
 _ufiber_create:
 	movq  %rsp, %rax
 	movq  %rdi, %rsp
@@ -50,6 +50,7 @@ _ufiber_create:
 	movq  %rax, %rsp
 	ret
 
+# _ufiber_switch(unsigned long *save_sp, unsigned long *rest_sp)
 _ufiber_switch:
 	pushfq
 	pushq %rbx
@@ -78,6 +79,7 @@ _ufiber_trampoline:
 
 #elif ARCH_IA32
 
+# _ufiber_create(cx_addr, start_routine, arg, trampoline, exit)
 _ufiber_create:
 	pushl %ebx
 	pushl %edi
@@ -97,6 +99,7 @@ _ufiber_create:
 	popl  %ebx
 	ret
 
+# _ufiber_switch(unsigned long *save_sp, unsigned long *rest_sp)
 _ufiber_switch:
 	movl  4(%esp), %eax
 	movl  8(%esp), %ecx
@@ -120,5 +123,59 @@ _ufiber_trampoline:
 	call  *%esi
 	pushl %eax
 	call  *%ebx
+
+#elif ARCH_ARM
+
+@ ARM CPU state is saved as follows:
+@
+@     struct arm_context {
+@         word_t lr;
+@         word_t cpsr;
+@         word_t r11;
+@         word_t r10;
+@         word_t r9;
+@         word_t r8;
+@         word_t r7;
+@         word_t r6;
+@         word_t r5;
+@         word_t r4;
+@     };
+@
+
+@ _ufiber_create(cx_addr, start_routine, arg, trampoline, exit)
+_ufiber_create:
+	ldr  r12, [sp]     @ pull arg 5 (exit) off the stack
+	push {r4}
+	mov  r4, sp        @ save stack pointer in r4
+	mov  sp, r0        @ move the stack pointer to cx_addr
+	sub  sp, sp, #4    @ fix off-by-one in cx_addr
+
+	@ push initial context onto stack
+	push {r3}          @ lr := trampoline
+	mrs  r0, cpsr
+	push {r0}          @ save cpsr
+	push {r7-r11}      @ (these don't actually matter)
+	push {r1-r2, r12}  @ {r4, r5, r6} := {start_routine, arg, exit}
+
+	mov  r0, sp
+	mov  sp, r4        @ restore stack pointer
+	pop  {r4}
+	bx   lr
+
+@ _ufiber_switch(unsigned long *save_sp, unsigned long *rest_sp)
+_ufiber_switch:
+	mrs  r12, cpsr
+	push {r4-r12, lr}
+	str  sp, [r0]      @ save stack pointer in save_sp
+	ldr  sp, [r1]      @ restore stack pointer from rest_sp
+	pop  {r4-r12, lr}
+	msr  cpsr, r12
+	bx   lr
+
+@ ufiber_exit in r6, start_routine in r4, arg in r5
+_ufiber_trampoline:
+	mov r0, r5
+	blx r4
+	bx  r6
 
 #endif

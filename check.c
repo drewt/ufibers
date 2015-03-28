@@ -35,6 +35,10 @@
 
 #define NR_FIBERS 30
 
+#ifndef ck_assert_ptr_eq
+#define ck_assert_ptr_eq(a, b) ck_assert((void*)a == (void*)b)
+#endif
+
 static int counter;
 static ufiber_t other;
 static ufiber_mutex_t mutex;
@@ -142,7 +146,8 @@ struct s_yield_to {
 static void *uf_yield_to(void *data)
 {
 	struct s_yield_to *s = data;
-	ck_assert_int_eq(s->ord, counter++);
+	ck_assert_int_eq(s->ord, counter);
+	counter++;
 	ufiber_yield_to(s->next);
 	return NULL;
 }

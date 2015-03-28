@@ -223,6 +223,8 @@ int ufiber_create(ufiber_t *fiber, unsigned long flags,
 	frame = tcb->stack + STACK_SIZE - CONTEXT_SIZE - 128;
 	tcb->esp = (unsigned long) frame;
 
+	// XXX: + sizeof(unsigned long) to paper over differing push/pop
+	//      semantics (e.g. load before increment vs the reverse).
 	_ufiber_create(frame + CONTEXT_SIZE + sizeof(unsigned long),
 			start_routine, arg, _ufiber_trampoline, ufiber_exit);
 
