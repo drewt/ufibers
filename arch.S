@@ -28,13 +28,11 @@
  * POSSIBILITY OF SUCH DAMAGE.
 */
 
-#include "config.h"
-
 .global _ufiber_create
 .global _ufiber_switch
 .global _ufiber_trampoline
 
-#if ARCH_AMD64
+#if __amd64__
 
 # _ufiber_create(cx_addr, start_routine, arg, trampoline, exit)
 _ufiber_create:
@@ -77,7 +75,7 @@ _ufiber_trampoline:
 	movq %rax, %rdi
 	call *%r13
 
-#elif ARCH_IA32
+#elif __i386__
 
 # _ufiber_create(cx_addr, start_routine, arg, trampoline, exit)
 _ufiber_create:
@@ -124,7 +122,7 @@ _ufiber_trampoline:
 	pushl %eax
 	call  *%ebx
 
-#elif ARCH_ARM
+#elif __arm__
 
 @ ARM CPU state is saved as follows:
 @

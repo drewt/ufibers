@@ -31,24 +31,14 @@
 #ifndef _CONFIG_H_
 #define _CONFIG_H_
 
-/* compiler */
-#if __GNUC__
-# if __i386__
-#  define ARCH_IA32 1
-#  define CONTEXT_SIZE (4*6) /* 4 registers + eflags + return address */
-# elif __amd64__
-#  define ARCH_AMD64 1
-#  define CONTEXT_SIZE (8*8) /* 6 registers + eflags + return address */
-# elif __arm__
-#  define ARCH_ARM 1
-#  define CONTEXT_SIZE (4*10) /* {r4-r11, lr, cpsr} */
-# else
-#  error unsupported architecture
-# endif /* __i386__ */
+#if __i386__
+# define CONTEXT_SIZE (4*6) /* 4 registers + eflags + return address */
+#elif __amd64__
+# define CONTEXT_SIZE (8*8) /* 6 registers + eflags + return address */
+#elif __arm__
+# define CONTEXT_SIZE (4*10) /* {r4-r11, lr, cpsr} */
 #else
-# error unsupported compiler
-#endif /* GCC */
-
-#define STACK_SIZE (8*1024*1024)
+# error unsupported architecture
+#endif
 
 #endif

@@ -35,6 +35,8 @@
 #include "ufiber.h"
 #include "queue.h"
 
+#define STACK_SIZE (8*1024*1024)
+
 /* must be at least 1 */
 #define FREE_LIST_MAX 1
 
