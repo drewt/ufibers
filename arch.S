@@ -38,14 +38,15 @@
 _ufiber_create:
 	movq  %rsp, %rax
 	movq  %rdi, %rsp
-	pushq %rcx
+	pushq %rcx       # return address := trampoline
 	pushfq
 	pushq $0
 	pushq $0
-	pushq %r8
-	pushq %rsi
-	pushq %rdx
-	movq  %rax, %rsp
+	pushq %r8        # r13 := ufiber_exit
+	pushq %rsi       # r14 := start_routine
+	pushq %rdx       # r15 := arg
+	pushq $0
+	xchg  %rax, %rsp
 	ret
 
 # _ufiber_switch(unsigned long *save_sp, unsigned long *rest_sp)
@@ -87,12 +88,13 @@ _ufiber_create:
 	movl 24(%esp), %ebx
 	movl 28(%esp), %edi
 	movl 12(%esp), %esp
-	pushl %ebx
+	pushl %ebx          # return addres := trampoline
 	pushfl
-	pushl %edi
-	pushl %ecx
-	pushl %edx
-	movl  %eax, %esp
+	pushl %edi          # ebx := ufiber_exit
+	pushl %ecx          # esi := start_routine
+	pushl %edx          # edi := arg
+	pushl $0
+	xchg  %eax, %esp
 	popl  %edi
 	popl  %ebx
 	ret

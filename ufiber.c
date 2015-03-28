@@ -31,7 +31,6 @@
 #include <stdlib.h>
 #include <errno.h>
 
-#include "config.h"
 #include "ufiber.h"
 #include "queue.h"
 
@@ -52,7 +51,7 @@ struct ufiber {
 	struct ufiber_waitlist blocked;
 	struct ufiber_waitlist *blocked_on;
 	char          *stack;
-	unsigned long esp;
+	void          *sp;
 	unsigned long state;
 	unsigned long flags;
 	int           ref;
@@ -72,9 +71,9 @@ static struct ufiber *root;         // the top-level fiber
 static struct ufiber *last_blocked; // last fiber to block
 
 /* arch.S */
-extern void _ufiber_create(void *cx, void*(*start_routine)(void*), void *arg,
+extern void *_ufiber_create(void *cx, void*(*start_routine)(void*), void *arg,
 		void (*trampoline)(void), void (*ret)(void*));
-extern void _ufiber_switch(unsigned long *save_esp, unsigned long *rest_esp);
+extern void _ufiber_switch(void *save_sp, void *rest_sp);
 extern void _ufiber_trampoline(void);
 
 /* get a free TCB */
@@ -123,13 +122,13 @@ static void free_tcb(struct ufiber *tcb)
 
 static void context_switch(struct ufiber *fiber)
 {
-	unsigned long *save_esp = &current->esp;
+	void *save_sp = &current->sp;
 
 	if (fiber == current)
 		return;
 
 	current = fiber;
-	_ufiber_switch(save_esp, &fiber->esp);
+	_ufiber_switch(save_sp, &fiber->sp);
 }
 
 /* add 'fiber' to the ready queue */
@@ -222,15 +221,13 @@ int ufiber_create(ufiber_t *fiber, unsigned long flags,
 	tcb->flags = flags;
 	UFIBER_CIRCLEQ_INIT(&tcb->blocked);
 
-	frame = tcb->stack + STACK_SIZE - CONTEXT_SIZE - 128;
-	tcb->esp = (unsigned long) frame;
-
-	_ufiber_create(frame + CONTEXT_SIZE, start_routine, arg,
+	frame = tcb->stack + STACK_SIZE - sizeof(unsigned long);
+	tcb->sp = _ufiber_create(frame, start_routine, arg,
 			_ufiber_trampoline, ufiber_exit);
 
 	ready(tcb);
 
-	if (fiber != NULL)
+	if (fiber)
 		*fiber = tcb;
 
 	fiber_count++;
