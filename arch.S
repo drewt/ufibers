@@ -148,7 +148,6 @@ _ufiber_create:
 	push {r4}
 	mov  r4, sp        @ save stack pointer in r4
 	mov  sp, r0        @ move the stack pointer to cx_addr
-	sub  sp, sp, #4    @ fix off-by-one in cx_addr
 
 	@ push initial context onto stack
 	push {r3}          @ lr := trampoline

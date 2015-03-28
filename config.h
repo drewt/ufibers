@@ -35,10 +35,10 @@
 #if __GNUC__
 # if __i386__
 #  define ARCH_IA32 1
-#  define CONTEXT_SIZE (4*5) /* 4 registers + eflags */
+#  define CONTEXT_SIZE (4*6) /* 4 registers + eflags + return address */
 # elif __amd64__
 #  define ARCH_AMD64 1
-#  define CONTEXT_SIZE (8*7) /* 6 registers + eflags */
+#  define CONTEXT_SIZE (8*8) /* 6 registers + eflags + return address */
 # elif __arm__
 #  define ARCH_ARM 1
 #  define CONTEXT_SIZE (4*10) /* {r4-r11, lr, cpsr} */
