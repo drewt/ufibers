@@ -155,6 +155,11 @@ _ufiber_create:
 	push {r0}          @ save cpsr
 	push {r7-r11}      @ (these don't actually matter)
 	push {r1-r2, r12}  @ {r4, r5, r6} := {start_routine, arg, exit}
+#if __ARM_PCS_VFP && !ASSUME_NO_FPU
+	vmrs  r0, fpscr
+	push  {r0}         @ save FPU status
+	vpush {s16-s31}    @ (don't matter)
+#endif
 
 	mov  r0, sp
 	mov  sp, r4        @ restore stack pointer
@@ -163,13 +168,23 @@ _ufiber_create:
 
 @ _ufiber_switch(unsigned long *save_sp, unsigned long *rest_sp)
 _ufiber_switch:
-	mrs  r12, cpsr
-	push {r4-r12, lr}
-	str  sp, [r0]      @ save stack pointer in save_sp
-	ldr  sp, [r1]      @ restore stack pointer from rest_sp
-	pop  {r4-r12, lr}
-	msr  cpsr, r12
-	bx   lr
+	mrs   r12, cpsr
+	push  {r4-r12, lr}
+#if __ARM_PCS_VFP && !ASSUME_NO_FPU
+	vmrs  r12, fpscr
+	push  {r0}
+	vpush {s16-s31}
+#endif
+	str   sp, [r0]      @ save stack pointer in save_sp
+	ldr   sp, [r1]      @ restore stack pointer from rest_sp
+#if __ARM_PCS_VFP && !ASSUME_NO_FPU
+	pop   {r12}
+	vmsr  fpscr, r12
+	vpop  {s16-s31}
+#endif
+	pop   {r4-r12, lr}
+	msr   cpsr, r12
+	bx    lr
 
 @ ufiber_exit in r6, start_routine in r4, arg in r5
 _ufiber_trampoline:
