@@ -71,7 +71,8 @@ static struct ufiber *root;         // the top-level fiber
 static struct ufiber *last_blocked; // last fiber to block
 
 /* arch.S */
-extern void *_ufiber_create(void *cx, void*(*start_routine)(void*), void *arg,
+extern void *_ufiber_create(void *cx, size_t stack_size,
+		void*(*start_routine)(void*), void *arg,
 		void (*trampoline)(void), void (*ret)(void*));
 extern void _ufiber_switch(void *save_sp, void *rest_sp);
 extern void _ufiber_trampoline(void);
@@ -212,8 +213,6 @@ int ufiber_create(ufiber_t *fiber, unsigned long flags,
 		void *(*start_routine)(void*), void *arg)
 {
 	struct ufiber *tcb;
-	char *frame;
-
 	if ((tcb = alloc_tcb()) == NULL)
 		return ENOMEM;
 
@@ -221,8 +220,7 @@ int ufiber_create(ufiber_t *fiber, unsigned long flags,
 	tcb->flags = flags;
 	UFIBER_CIRCLEQ_INIT(&tcb->blocked);
 
-	frame = tcb->stack + STACK_SIZE - sizeof(unsigned long);
-	tcb->sp = _ufiber_create(frame, start_routine, arg,
+	tcb->sp = _ufiber_create(tcb->stack, STACK_SIZE, start_routine, arg,
 			_ufiber_trampoline, ufiber_exit);
 
 	ready(tcb);

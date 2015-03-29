@@ -34,17 +34,31 @@
 
 #if __amd64__
 
-# _ufiber_create(cx_addr, start_routine, arg, trampoline, exit)
+# AMD64 CPU state is saved as follows:
+#
+#     struct amd64_context {
+#         word_t return_addr;
+#         word_t eflags;
+#         word_t rbx;
+#         word_t r12;
+#         word_t r13;
+#         word_t r14;
+#         word_t r15;
+#         word_t rbp;
+#     };
+
+# _ufiber_create(stack, stack_size, start_routine, arg, trampoline, exit)
 _ufiber_create:
 	movq  %rsp, %rax
-	movq  %rdi, %rsp
-	pushq %rcx       # return address := trampoline
+	movq  %rdi, %rsp  # rsp := stack
+	addq  %rsi, %rsp  # rsp += stack_size
+	pushq %r8         # return address := trampoline
 	pushfq
 	pushq $0
 	pushq $0
-	pushq %r8        # r13 := ufiber_exit
-	pushq %rsi       # r14 := start_routine
-	pushq %rdx       # r15 := arg
+	pushq %r9         # cx.r13 := ufiber_exit
+	pushq %rdx        # cx.r14 := start_routine
+	pushq %rcx        # cx.r15 := arg
 	pushq $0
 	xchg  %rax, %rsp
 	ret
@@ -78,21 +92,34 @@ _ufiber_trampoline:
 
 #elif __i386__
 
-# _ufiber_create(cx_addr, start_routine, arg, trampoline, exit)
+# IA32 CPU state is saved as follows:
+#
+#     struct ia32_context {
+#         word_t return_addr;
+#         word_t eflags;
+#         word_t ebx;
+#         word_t esi;
+#         word_t edi;
+#         word_t edi;
+#         word_t ebp;
+#     };
+
+# _ufiber_create(stack, stack_size, start_routine, arg, trampoline, exit)
 _ufiber_create:
 	pushl %ebx
 	pushl %edi
 	movl    %esp,  %eax
-	movl 16(%esp), %ecx
-	movl 20(%esp), %edx
-	movl 24(%esp), %ebx
-	movl 28(%esp), %edi
-	movl 12(%esp), %esp
-	pushl %ebx          # return addres := trampoline
+	movl 20(%esp), %ecx  # ecx := start_routine
+	movl 24(%esp), %edx  # edx := arg
+	movl 28(%esp), %ebx  # ebx := trampoline
+	movl 32(%esp), %edi  # edi := exit
+	movl 12(%esp), %esp  # esp := stack
+	addl 16(%eax), %esp  # esp += stack_size
+	pushl %ebx           # cx.return address := trampoline
 	pushfl
-	pushl %edi          # ebx := ufiber_exit
-	pushl %ecx          # esi := start_routine
-	pushl %edx          # edi := arg
+	pushl %edi           # cx.ebx := ufiber_exit
+	pushl %ecx           # cx.esi := start_routine
+	pushl %edx           # cx.edi := arg
 	pushl $0
 	xchg  %eax, %esp
 	popl  %edi
@@ -139,31 +166,36 @@ _ufiber_trampoline:
 @         word_t r6;
 @         word_t r5;
 @         word_t r4;
+@         word_t fpscr;
+@         word_t s16;
+@         ...
+@         word_t s31;
 @     };
-@
 
-@ _ufiber_create(cx_addr, start_routine, arg, trampoline, exit)
+@ _ufiber_create(stack, stack_size, start_routine, arg, trampoline, exit)
 _ufiber_create:
-	ldr  r12, [sp]     @ pull arg 5 (exit) off the stack
-	push {r4}
-	mov  r4, sp        @ save stack pointer in r4
-	mov  sp, r0        @ move the stack pointer to cx_addr
+	push {r4, r5}
+	ldr  r4,  [sp, #8]   @ r4  := trampoline
+	ldr  r5,  [sp, #12]  @ r5  := exit
+	mov  r12, sp         @ r12 := sp
+	mov  sp,  r0         @ sp  := stack
+	add  sp,  sp, r1     @ sp  += stack_size
 
 	@ push initial context onto stack
-	push {r3}          @ lr := trampoline
+	push {r4}            @ cx.lr := trampoline
 	mrs  r0, cpsr
-	push {r0}          @ save cpsr
-	push {r7-r11}      @ (these don't actually matter)
-	push {r1-r2, r12}  @ {r4, r5, r6} := {start_routine, arg, exit}
+	push {r0}            @ save cpsr
+	push {r7-r11}        @ (these don't actually matter)
+	push {r2-r3, r5}     @ cx.{r4, r5, r6} := {start_routine, arg, exit}
 #if __ARM_PCS_VFP && !ASSUME_NO_FPU
 	vmrs  r0, fpscr
-	push  {r0}         @ save FPU status
-	vpush {s16-s31}    @ (don't matter)
+	push  {r0}           @ save FPU status
+	vpush {s16-s31}      @ (don't matter)
 #endif
 
 	mov  r0, sp
-	mov  sp, r4        @ restore stack pointer
-	pop  {r4}
+	mov  sp, r12         @ restore stack pointer
+	pop  {r4, r5}
 	bx   lr
 
 @ _ufiber_switch(unsigned long *save_sp, unsigned long *rest_sp)
